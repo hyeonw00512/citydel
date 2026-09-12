@@ -2,6 +2,7 @@
   "name": "citadel-real-time-game",
   "private": true,
   "version": "1.0.0",
+  "packageManager": "pnpm@9.15.4",
   "workspaces": ["shared", "server", "client"],
   "scripts": {
     "dev": "concurrently -n server,client -c yellow,cyan \"npm run dev -w @citadel/server\" \"npm run dev -w @citadel/client\"",

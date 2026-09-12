@@ -3,8 +3,8 @@ services:
     runtime: node
     name: citydel-game
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run start -w @citadel/server
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm run build
+    startCommand: corepack pnpm --filter @citadel/server start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
