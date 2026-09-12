@@ -62,7 +62,7 @@ export const ROLE_SETS: readonly RoleSetDefinition[] = [
     targeted("assassin", "암살자", 1, "비밀리에 대상 역할을 지목해 이번 라운드 행동을 막습니다.", "#64748b", "ASSASSINATE", "봉쇄할 역할 지정"),
     targeted("thief", "도둑", 2, "비밀리에 대상 역할을 지목해 해당 플레이어의 금화를 가져옵니다.", "#16a34a", "STEAL_GOLD", "노릴 역할 지정"),
     magician("magician", "마술사", 3, "다른 플레이어와 손패를 교환하거나 새 카드로 바꿉니다.", "#7c3aed"),
-    income("king", "왕", 4, "귀족 건물에서 수입을 얻습니다.", "#ca8a04", "NOBLE"),
+    income("king", "왕", 4, "턴을 시작하면 왕관을 가져옵니다. 이후 귀족 건물마다 금화 1개를 얻습니다.", "#ca8a04", "NOBLE"),
     income("bishop", "주교", 5, "신앙 건물에서 수입을 얻습니다.", "#2563eb", "RELIGIOUS"),
     income("merchant", "상인", 6, "상업 건물에서 수입을 얻습니다.", "#0891b2", "TRADE"),
     architect("architect", "건축가", 7, "카드 2장을 받고 최대 3채를 건설합니다.", "#ea580c"),

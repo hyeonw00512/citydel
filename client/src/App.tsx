@@ -64,6 +64,7 @@ export function App() {
   const [privateState, setPrivateState] = useState<PrivatePlayerState | null>(null);
   const [message, setMessage] = useState("");
   const [copyNotice, setCopyNotice] = useState("");
+  const [showRulesGuide, setShowRulesGuide] = useState(false);
   const [connected, setConnected] = useState(socket.connected);
   const [wonderCard, setWonderCard] = useState<DistrictCard | null>(null);
 
@@ -175,8 +176,9 @@ export function App() {
   return <main className="gameShell">
     <header>
       <div><p className="eyebrow">{room.game.phase === GamePhase.LOBBY ? "대기실" : `${room.game.round} 라운드`}</p><h1>{room.name}</h1></div>
-      <button className="ghost" onClick={leaveLocal}>나가기</button>
+      <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button><button className="ghost" onClick={leaveLocal}>나가기</button></div>
     </header>
+    {showRulesGuide && <RulesGuide onClose={() => setShowRulesGuide(false)} />}
     <section className="roomBar">
       <div><span>방 코드</span><strong>{room.code}</strong></div>
       <button onClick={copyInviteUrl}>{copyNotice.startsWith("전체") ? "복사됨 ✓" : "초대 링크 복사"}</button>
@@ -277,6 +279,25 @@ function RoleSelection({ room, privateState, onSelect, onChoosePair, onDiscard }
 
 function byRoleRank(roles: readonly RoleDefinition[]) {
   return [...roles].sort((left, right) => left.rank - right.rank);
+}
+
+function RulesGuide({ onClose }: { onClose: () => void }) {
+  return <div className="rulesOverlay" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+    <section className="rulesGuide">
+      <div className="sectionTitle"><div><p className="eyebrow">처음 하는 사람을 위한</p><h2 id="rules-title">게임 가이드</h2></div><button className="ghost" onClick={onClose}>닫기</button></div>
+      <div className="rulesGrid">
+        <article><h3>1. 승리 목표</h3><p>도시의 건물 점수를 가장 많이 모으면 승리합니다. 2~3인은 누군가 8채, 4~8인은 7채를 지으면 이번 라운드가 끝난 뒤 점수를 계산합니다.</p></article>
+        <article><h3>2. 한 라운드의 흐름</h3><p>비밀 역할 선택 → 역할 번호 순서대로 턴 진행 → 다음 라운드입니다. 낮은 번호 역할부터 차례가 오며, 선택한 역할은 다른 플레이어에게 공개되지 않습니다.</p></article>
+        <article><h3>3. 내 턴</h3><p>먼저 금화 2개 또는 카드 2장 중 1장을 고릅니다. 이어 역할 능력을 한 번 사용하거나 건너뛰고, 손패에서 건물을 건설합니다. 기본적으로 한 턴에 한 채만 건설합니다.</p></article>
+        <article><h3>4. 왕관과 왕</h3><p>왕의 턴이 시작되면 왕관을 자동으로 가져옵니다. 왕관 보유자는 다음 라운드 역할 선택을 가장 먼저 시작합니다. 왕은 추가로 귀족 건물마다 금화 1개를 얻습니다.</p></article>
+        <article><h3>5. 기본 역할</h3><p>암살자는 역할을 봉쇄하고, 도둑은 역할의 금화를 가져오며, 마술사는 손패를 바꿉니다. 주교·상인·왕·장군은 해당 색 건물 수입을 받습니다. 건축가는 카드 2장과 건설 3회를 얻습니다.</p></article>
+        <article><h3>6. 건설과 점수</h3><p>카드 비용만큼 금화를 내고 건설합니다. 같은 일반 건물은 여러 장 가능하지만 고유 건물은 도시마다 한 장만 가능합니다. 다섯 색을 모두 갖추면 색상 완성 보너스를 얻습니다.</p></article>
+        <article><h3>7. 장군과 방어</h3><p>장군은 비용보다 금화 1개 적게 내고 건물을 파괴할 수 있습니다. 성채는 파괴되지 않으며, 성벽이 있는 도시는 파괴 비용이 1개 더 듭니다.</p></article>
+        <article><h3>8. 인원별 역할 선택</h3><p>2~3인은 각자 역할을 두 장 맡아 역할별로 두 번의 턴을 합니다. 2인은 두 번째 선택에서 비공개 제외 한 장과 내 역할 한 장을 함께 정하고, 3인은 첫 선택 뒤 서버가 역할 한 장을 비공개로 무작위 제외합니다.</p></article>
+      </div>
+      <p className="rulesHint">특수 건물의 낯선 용어는 각 카드의 <b>？ 용어 설명</b> 버튼에서 바로 확인할 수 있습니다.</p>
+    </section>
+  </div>;
 }
 
 function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onBuild, onDistrictAbility, onAbility, onColorIncome, onMagician, onWarlord, onScholar, onChooseScholar, onGraveyardRecover, onArtist, onSpy, onSeer, onWizard, onMagistrate, onEmperor, onSkipAction, onEnd }: {
