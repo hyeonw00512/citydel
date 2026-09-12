@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "@citadel/shared";
 import { GameEngine } from "./game/GameEngine.js";
@@ -12,6 +15,12 @@ const clientOrigin = process.env.CLIENT_ORIGIN ?? "*";
 const app = express();
 app.use(cors({ origin: clientOrigin }));
 app.get("/health", (_request, response) => response.json({ ok: true }));
+
+const clientDist = resolve(dirname(fileURLToPath(import.meta.url)), "../../client/dist");
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get("*", (_request, response) => response.sendFile(resolve(clientDist, "index.html")));
+}
 
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
