@@ -49,9 +49,17 @@ export class RoleManager {
       .filter((role): role is RoleDefinition => Boolean(role));
   }
 
+  getPairChoices(room: Room, playerId: string): RoleDefinition[] {
+    if (!this.requiresRolePair(room, playerId)) return [];
+    return this.getActiveRoles(room).filter((role) => room.game.availableRoleIds.includes(role.id));
+  }
+
   select(room: Room, playerId: string, roleId: string): void {
     if (room.game.selectionOrder[room.game.selectionIndex] !== playerId) {
       throw new Error("현재는 내 역할 선택 차례가 아닙니다.");
+    }
+    if (this.requiresRolePair(room, playerId)) {
+      throw new Error("두 번째 역할과 비공개 제외 역할을 함께 선택해 주세요.");
     }
     const role = this.getChoices(room, playerId).find((candidate) => candidate.id === roleId);
     if (!role) throw new Error("선택할 수 없는 역할입니다.");
@@ -61,10 +69,24 @@ export class RoleManager {
     } else {
       room.game.availableRoleIds = room.game.availableRoleIds.filter((id) => id !== roleId);
     }
-    if (this.requiresSecondaryDiscard(room)) {
-      room.game.pendingRoleDiscardPlayerId = playerId;
-      return;
+    if (this.requiresThreePlayerRandomDiscard(room)) this.discardRandomRole(room);
+    room.game.selectionIndex += 1;
+    if (room.game.selectionIndex >= room.game.selectionOrder.length) {
+      room.game.faceDownDiscardedRoleIds.push(...room.game.availableRoleIds);
+      room.game.availableRoleIds = [];
     }
+  }
+
+  selectPair(room: Room, playerId: string, roleId: string, discardRoleId: string): void {
+    const choices = this.getPairChoices(room, playerId);
+    const chosen = choices.find((role) => role.id === roleId);
+    const discarded = choices.find((role) => role.id === discardRoleId);
+    if (!chosen || !discarded || chosen.id === discarded.id) {
+      throw new Error("보관할 역할과 제외할 역할을 서로 다르게 선택해 주세요.");
+    }
+    room.game.rolesByPlayerId.set(playerId, [...(room.game.rolesByPlayerId.get(playerId) ?? []), chosen]);
+    room.game.availableRoleIds = room.game.availableRoleIds.filter((id) => id !== roleId && id !== discardRoleId);
+    room.game.faceDownDiscardedRoleIds.push(discardRoleId);
     room.game.selectionIndex += 1;
     if (room.game.selectionIndex >= room.game.selectionOrder.length) {
       room.game.faceDownDiscardedRoleIds.push(...room.game.availableRoleIds);
@@ -105,9 +127,21 @@ export class RoleManager {
     return isLastSelection && [7, 8].includes(room.players.size) && room.game.faceDownDiscardedRoleIds.length === 1;
   }
 
-  private requiresSecondaryDiscard(room: Room): boolean {
-    if (room.players.size === 2) return room.game.selectionIndex >= 2;
+  private requiresRolePair(room: Room, playerId: string): boolean {
+    return room.players.size === 2
+      && room.game.selectionOrder[room.game.selectionIndex] === playerId
+      && room.game.selectionIndex >= 2;
+  }
+
+  private requiresThreePlayerRandomDiscard(room: Room): boolean {
     return room.players.size === 3 && room.game.selectionIndex === 2;
+  }
+
+  private discardRandomRole(room: Room): void {
+    if (room.game.availableRoleIds.length === 0) return;
+    const index = Math.floor(Math.random() * room.game.availableRoleIds.length);
+    const [roleId] = room.game.availableRoleIds.splice(index, 1);
+    if (roleId) room.game.faceDownDiscardedRoleIds.push(roleId);
   }
 
   private shuffle<T>(items: readonly T[]): T[] {

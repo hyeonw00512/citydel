@@ -74,6 +74,15 @@ export class GameEngine {
     }
   }
 
+  chooseRolePair(room: Room, playerId: string, roleId: string, discardRoleId: string): void {
+    if (room.game.phase !== GamePhase.ROLE_SELECTION) throw new Error("역할 선택 단계가 아닙니다.");
+    this.roles.selectPair(room, playerId, roleId, discardRoleId);
+    if (room.game.selectionIndex >= room.game.selectionOrder.length) {
+      this.turns.begin(room);
+      this.startCurrentTurn(room);
+    }
+  }
+
   discardRole(room: Room, playerId: string, roleId: string): void {
     if (room.game.phase !== GamePhase.ROLE_SELECTION) throw new Error("역할 선택 단계가 아닙니다.");
     this.roles.discard(room, playerId, roleId);
@@ -330,6 +339,12 @@ export class GameEngine {
         this.logs.add(room, "연결이 끊긴 플레이어의 역할 카드가 비공개로 자동 제외되었습니다.");
         return true;
       }
+      const pairChoices = this.roles.getPairChoices(room, playerId);
+      if (pairChoices.length >= 2) {
+        this.chooseRolePair(room, playerId, pairChoices[0]!.id, pairChoices[1]!.id);
+        this.logs.add(room, "연결이 끊긴 플레이어의 두 번째 역할과 비공개 제외 역할이 자동 선택되었습니다.");
+        return true;
+      }
       const role = this.roles.getChoices(room, playerId)[0];
       if (!role) return false;
       this.selectRole(room, playerId, role.id);
@@ -394,7 +409,10 @@ export class GameEngine {
       roleChoices: room.game.phase === GamePhase.ROLE_SELECTION ? this.roles.getChoices(room, playerId) : [],
       canSelectRole: room.game.phase === GamePhase.ROLE_SELECTION
         && room.game.selectionOrder[room.game.selectionIndex] === playerId
-        && room.game.pendingRoleDiscardPlayerId === null,
+        && room.game.pendingRoleDiscardPlayerId === null
+        && this.roles.getPairChoices(room, playerId).length === 0,
+      rolePairChoices: room.game.phase === GamePhase.ROLE_SELECTION ? this.roles.getPairChoices(room, playerId) : [],
+      canChooseRolePair: room.game.phase === GamePhase.ROLE_SELECTION && this.roles.getPairChoices(room, playerId).length >= 2,
       roleDiscardChoices: room.game.phase === GamePhase.ROLE_SELECTION ? this.roles.getDiscardChoices(room, playerId) : [],
       canDiscardRole: room.game.phase === GamePhase.ROLE_SELECTION && room.game.pendingRoleDiscardPlayerId === playerId,
       gold: player.gold,

@@ -122,6 +122,8 @@ export interface PrivatePlayerState {
   selectedRoles: RoleDefinition[];
   roleChoices: RoleDefinition[];
   canSelectRole: boolean;
+  rolePairChoices: RoleDefinition[];
+  canChooseRolePair: boolean;
   roleDiscardChoices: RoleDefinition[];
   canDiscardRole: boolean;
   gold: number;
@@ -167,6 +169,7 @@ export interface ClientToServerEvents {
   "game:start": (callback: (result: ActionResult) => void) => void;
   "game:rematch": (callback: (result: ActionResult) => void) => void;
   "role:select": (roleId: string, callback: (result: ActionResult) => void) => void;
+  "role:choose-pair": (payload: { roleId: string; discardRoleId: string }, callback: (result: ActionResult) => void) => void;
   "role:discard": (roleId: string, callback: (result: ActionResult) => void) => void;
   "income:take": (type: "GOLD" | "CARDS", callback: (result: ActionResult) => void) => void;
   "income:choose": (cardInstanceId: string, callback: (result: ActionResult) => void) => void;

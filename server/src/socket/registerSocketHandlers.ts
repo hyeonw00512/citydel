@@ -70,6 +70,13 @@ export function registerSocketHandlers(io: GameServer, rooms: RoomManager, engin
       return undefined;
     }));
 
+    socket.on("role:choose-pair", ({ roleId, discardRoleId }, callback) => handle(socket, callback, () => {
+      const { room, player } = requireSession(rooms, socket.id);
+      engine.chooseRolePair(room, player.id, roleId, discardRoleId);
+      publish(io, rooms, engine, room);
+      return undefined;
+    }));
+
     socket.on("role:discard", (roleId, callback) => handle(socket, callback, () => {
       const { room, player } = requireSession(rooms, socket.id);
       engine.discardRole(room, player.id, roleId);

@@ -9,6 +9,12 @@ function completeRoleSelection(engine: GameEngine, room: Room, preserveAllTurns 
   while (room.game.phase === GamePhase.ROLE_SELECTION) {
     const playerId = room.game.selectionOrder[room.game.selectionIndex]!;
     const privateState = engine.toPrivateState(room, playerId);
+    if (privateState.canChooseRolePair) {
+      const pair = privateState.rolePairChoices
+        .sort((left, right) => right.rank - left.rank);
+      engine.chooseRolePair(room, playerId, pair[0]!.id, pair[1]!.id);
+      continue;
+    }
     if (privateState.canDiscardRole) {
       engine.discardRole(room, playerId, privateState.roleDiscardChoices[0]!.id);
       continue;
@@ -403,9 +409,9 @@ describe("authoritative game flow", () => {
 
     engine.selectRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleChoices.sort((left, right) => right.rank - left.rank)[0]!.id);
     expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
-    expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
-    engine.selectRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleChoices.sort((left, right) => right.rank - left.rank)[0]!.id);
-    engine.discardRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleDiscardChoices[0]!.id);
+    const secondPair = engine.toPrivateState(first.room, second.session.playerId).rolePairChoices
+      .sort((left, right) => right.rank - left.rank);
+    engine.chooseRolePair(first.room, second.session.playerId, secondPair[0]!.id, secondPair[1]!.id);
     expect(first.room.game.phase).toBe(GamePhase.INCOME);
     expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
     expect(first.room.game.phase).toBe(GamePhase.ACTION);
@@ -823,7 +829,7 @@ describe("authoritative game flow", () => {
     expect(first.room.game.turnOrder).toHaveLength(7);
   });
 
-  it("requires each player to privately discard a role after their second two-player selection", () => {
+  it("requires each player to choose their second role and private discard together in a two-player game", () => {
     const engine = new GameEngine();
     const rooms = new RoomManager(engine);
     const first = rooms.create("첫번째", "socket-1");
@@ -835,22 +841,19 @@ describe("authoritative game flow", () => {
       const role = engine.toPrivateState(first.room, playerId).roleChoices[0]!;
       engine.selectRole(first.room, playerId, role.id);
     }
-    const secondRole = engine.toPrivateState(first.room, first.session.playerId).roleChoices[0]!;
-    engine.selectRole(first.room, first.session.playerId, secondRole.id);
-    expect(engine.toPrivateState(first.room, first.session.playerId).canDiscardRole).toBe(true);
-    const discardRole = engine.toPrivateState(first.room, first.session.playerId).roleDiscardChoices[0]!;
-    engine.discardRole(first.room, first.session.playerId, discardRole.id);
+    const firstPair = engine.toPrivateState(first.room, first.session.playerId).rolePairChoices;
+    expect(engine.toPrivateState(first.room, first.session.playerId).canChooseRolePair).toBe(true);
+    engine.chooseRolePair(first.room, first.session.playerId, firstPair[0]!.id, firstPair[1]!.id);
 
-    const opponentSecondRole = engine.toPrivateState(first.room, second.session.playerId).roleChoices[0]!;
-    engine.selectRole(first.room, second.session.playerId, opponentSecondRole.id);
-    expect(engine.toPrivateState(first.room, second.session.playerId).canDiscardRole).toBe(true);
-    engine.discardRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleDiscardChoices[0]!.id);
+    const secondPair = engine.toPrivateState(first.room, second.session.playerId).rolePairChoices;
+    expect(engine.toPrivateState(first.room, second.session.playerId).canChooseRolePair).toBe(true);
+    engine.chooseRolePair(first.room, second.session.playerId, secondPair[0]!.id, secondPair[1]!.id);
     expect(first.room.game.phase).toBe(GamePhase.INCOME);
     expect(first.room.game.turnOrder).toHaveLength(4);
     expect(first.room.game.faceDownDiscardedRoleIds).toHaveLength(4);
   });
 
-  it("requires the third player to privately discard a role between the two selections in a three-player game", () => {
+  it("has the server randomly discard one role after the first three-player selection round", () => {
     const engine = new GameEngine();
     const rooms = new RoomManager(engine);
     const first = rooms.create("첫번째", "socket-1");
@@ -865,8 +868,8 @@ describe("authoritative game flow", () => {
       const role = engine.toPrivateState(first.room, playerId).roleChoices[0]!;
       engine.selectRole(first.room, playerId, role.id);
     }
-    expect(engine.toPrivateState(first.room, third.session.playerId).canDiscardRole).toBe(true);
-    engine.discardRole(first.room, third.session.playerId, engine.toPrivateState(first.room, third.session.playerId).roleDiscardChoices[0]!.id);
+    expect(engine.toPrivateState(first.room, third.session.playerId).canDiscardRole).toBe(false);
+    expect(first.room.game.faceDownDiscardedRoleIds).toHaveLength(2);
     completeRoleSelection(engine, first.room, true);
 
     expect(first.room.game.turnOrder).toHaveLength(6);

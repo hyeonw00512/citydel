@@ -159,7 +159,7 @@ export function App() {
     <div className="layout">
       <section className="mainPanel">
         {room.game.phase === GamePhase.LOBBY && <Lobby room={room} meId={session.playerId} onReady={() => socket.emit("room:ready", !me?.isReady, finish)} onRoleSet={(id) => socket.emit("room:role-set", id, finish)} onRankNine={(enabled, roleId, customMode) => socket.emit("room:rank-nine", { enabled, roleId, customMode }, finish)} onStart={() => socket.emit("game:start", finish)} />}
-        {room.game.phase === GamePhase.ROLE_SELECTION && <RoleSelection room={room} privateState={privateState} onSelect={(id) => socket.emit("role:select", id, finish)} onDiscard={(id) => socket.emit("role:discard", id, finish)} />}
+        {room.game.phase === GamePhase.ROLE_SELECTION && <RoleSelection room={room} privateState={privateState} onSelect={(id) => socket.emit("role:select", id, finish)} onChoosePair={(roleId, discardRoleId) => socket.emit("role:choose-pair", { roleId, discardRoleId }, finish)} onDiscard={(id) => socket.emit("role:discard", id, finish)} />}
         {room.game.phase === GamePhase.GAME_END && <GameEnd room={room} meId={session.playerId} canRematch={Boolean(me?.isHost)} onRematch={() => socket.emit("game:rematch", finish)} />}
         {[GamePhase.TURN_START, GamePhase.INCOME, GamePhase.ACTION, GamePhase.BUILD, GamePhase.TURN_END].includes(room.game.phase) && <GameBoard
           room={room}
@@ -233,14 +233,24 @@ function Lobby({ room, meId, onReady, onRoleSet, onRankNine, onStart }: { room: 
   </div>;
 }
 
-function RoleSelection({ room, privateState, onSelect, onDiscard }: { room: PublicRoomState; privateState: PrivatePlayerState | null; onSelect: (id: string) => void; onDiscard: (id: string) => void }) {
+function RoleSelection({ room, privateState, onSelect, onChoosePair, onDiscard }: { room: PublicRoomState; privateState: PrivatePlayerState | null; onSelect: (id: string) => void; onChoosePair: (roleId: string, discardRoleId: string) => void; onDiscard: (id: string) => void }) {
   const picker = room.players.find((player) => player.id === room.game.selectionPlayerId)?.nickname;
+  const [pendingDiscardRoleId, setPendingDiscardRoleId] = useState<string | null>(null);
+  const faceUpRoles = byRoleRank(room.game.faceUpDiscardedRoles);
+  const roleChoices = byRoleRank(privateState?.roleChoices ?? []);
+  const rolePairChoices = byRoleRank(privateState?.rolePairChoices ?? []);
+  const roleDiscardChoices = byRoleRank(privateState?.roleDiscardChoices ?? []);
   return <div><div className="phaseTitle"><p className="eyebrow">비밀 역할 선택</p><h2>{privateState?.canSelectRole ? "역할을 선택하세요" : `${picker ?? "다른 플레이어"}님의 선택을 기다리는 중`}</h2><p>{room.game.selectedCount} / {room.game.totalSelections} 선택 완료</p></div>
-    {room.game.faceUpDiscardedRoles.length > 0 && <section className="actionBox"><h3>이번 라운드 공개 제외 역할</h3><div className="roleGrid">{room.game.faceUpDiscardedRoles.map((role) => <div className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties}><RoleFace role={role} description="이번 라운드에는 사용되지 않습니다." /></div>)}</div></section>}
-    {privateState?.canSelectRole && <div className="roleGrid">{privateState.roleChoices.map((role) => <button className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onSelect(role.id)}><RoleFace role={role} /></button>)}</div>}
-    {privateState?.canDiscardRole && <section className="actionBox"><h3>비공개로 제외할 역할을 고르세요</h3><p>{room.players.length === 2 ? "두 번째 역할 선택에서는 남은 후보 한 장을 비공개로 버립니다." : "세 번째 플레이어는 첫 역할 선택 뒤 후보 한 장을 비공개로 버립니다."}</p><div className="roleGrid">{privateState.roleDiscardChoices.map((role) => <button className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onDiscard(role.id)}><RoleFace role={role} description="이 역할을 이번 라운드에서 제외" /></button>)}</div></section>}
+    {faceUpRoles.length > 0 && <section className="actionBox"><h3>이번 라운드 공개 제외 역할</h3><div className="roleGrid">{faceUpRoles.map((role) => <div className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties}><RoleFace role={role} description="이번 라운드에는 사용되지 않습니다." /></div>)}</div></section>}
+    {privateState?.canSelectRole && <div className="roleGrid">{roleChoices.map((role) => <button className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onSelect(role.id)}><RoleFace role={role} /></button>)}</div>}
+    {privateState?.canChooseRolePair && <section className="actionBox"><h3>{pendingDiscardRoleId ? "이제 내 두 번째 역할을 고르세요" : "먼저 비공개로 제외할 역할을 고르세요"}</h3><p>{pendingDiscardRoleId ? "제외한 역할은 누구에게도 공개되지 않습니다. 남은 후보에서 내 역할 한 장을 고르면 두 선택이 함께 확정됩니다." : "원작 2인 규칙: 이번 후보 중 한 장은 비공개 제외하고, 다른 한 장은 내 역할로 보관합니다."}</p><div className="roleGrid">{rolePairChoices.filter((role) => pendingDiscardRoleId ? role.id !== pendingDiscardRoleId : true).map((role) => <button className={`roleCard ${pendingDiscardRoleId === role.id ? "selected" : ""}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => pendingDiscardRoleId ? (onChoosePair(role.id, pendingDiscardRoleId), setPendingDiscardRoleId(null)) : setPendingDiscardRoleId(role.id)}><RoleFace role={role} description={pendingDiscardRoleId ? "이 역할을 내 두 번째 역할로 보관" : "이 역할을 비공개로 제외"} /></button>)}</div>{pendingDiscardRoleId && <button className="secondary" onClick={() => setPendingDiscardRoleId(null)}>제외 카드 다시 고르기</button>}</section>}
+    {privateState?.canDiscardRole && <section className="actionBox"><h3>비공개로 제외할 역할을 고르세요</h3><p>{room.players.length === 2 ? "두 번째 역할 선택에서는 남은 후보 한 장을 비공개로 버립니다." : "세 번째 플레이어는 첫 역할 선택 뒤 후보 한 장을 비공개로 버립니다."}</p><div className="roleGrid">{roleDiscardChoices.map((role) => <button className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onDiscard(role.id)}><RoleFace role={role} description="이 역할을 이번 라운드에서 제외" /></button>)}</div></section>}
     {privateState && privateState.selectedRoles.length > 0 && <div className="secret"><span>나의 비밀 역할</span><strong>{privateState.selectedRoles.map((role) => `${role.rank}. ${role.name}`).join(" · ")}</strong></div>}
   </div>;
+}
+
+function byRoleRank(roles: readonly RoleDefinition[]) {
+  return [...roles].sort((left, right) => left.rank - right.rank);
 }
 
 function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onBuild, onDistrictAbility, onAbility, onColorIncome, onMagician, onWarlord, onScholar, onChooseScholar, onGraveyardRecover, onArtist, onSpy, onSeer, onWizard, onMagistrate, onEmperor, onSkipAction, onEnd }: {
