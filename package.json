@@ -1,0 +1,16 @@
+{
+  "name": "citadel-real-time-game",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["shared", "server", "client"],
+  "scripts": {
+    "dev": "concurrently -n server,client -c yellow,cyan \"npm run dev -w @citadel/server\" \"npm run dev -w @citadel/client\"",
+    "build": "npm run build -w @citadel/shared && npm run build -w @citadel/server && npm run build -w @citadel/client",
+    "typecheck": "npm run typecheck -w @citadel/shared && npm run typecheck -w @citadel/server && npm run typecheck -w @citadel/client",
+    "test": "npm run test -w @citadel/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}

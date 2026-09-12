@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+*.tsbuildinfo
+.env
+citadel-phase1-4.zip
+citadel-phase1-8.zip
+citadel-phase1-9.zip
+citadel-phase1-11.zip
+.pnpm-store/

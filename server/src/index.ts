@@ -1,0 +1,26 @@
+import express from "express";
+import cors from "cors";
+import { createServer } from "node:http";
+import { Server } from "socket.io";
+import type { ClientToServerEvents, ServerToClientEvents } from "@citadel/shared";
+import { GameEngine } from "./game/GameEngine.js";
+import { RoomManager } from "./rooms/RoomManager.js";
+import { registerSocketHandlers } from "./socket/registerSocketHandlers.js";
+
+const port = Number(process.env.PORT ?? 3001);
+const clientOrigin = process.env.CLIENT_ORIGIN ?? "*";
+const app = express();
+app.use(cors({ origin: clientOrigin }));
+app.get("/health", (_request, response) => response.json({ ok: true }));
+
+const httpServer = createServer(app);
+const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
+  cors: { origin: clientOrigin, methods: ["GET", "POST"] }
+});
+const engine = new GameEngine();
+const rooms = new RoomManager(engine);
+registerSocketHandlers(io, rooms, engine);
+
+httpServer.listen(port, "0.0.0.0", () => {
+  console.log(`Citadel server listening on http://0.0.0.0:${port}`);
+});
