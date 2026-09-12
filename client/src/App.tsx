@@ -8,7 +8,7 @@ const ROLE_ART: Record<string, string> = {
   assassin: "/card-art/assassin.png",
   thief: "/card-art/thief.png",
   magician: "/card-art/magician.png",
-  king: "/card-art/king.png",
+  king: "/card-art/king-v3.png",
   bishop: "/card-art/bishop.png",
   merchant: "/card-art/merchant.png",
   architect: "/card-art/architect.png",
@@ -63,6 +63,7 @@ export function App() {
   const [room, setRoom] = useState<PublicRoomState | null>(null);
   const [privateState, setPrivateState] = useState<PrivatePlayerState | null>(null);
   const [message, setMessage] = useState("");
+  const [copyNotice, setCopyNotice] = useState("");
   const [connected, setConnected] = useState(socket.connected);
   const [wonderCard, setWonderCard] = useState<DistrictCard | null>(null);
 
@@ -145,7 +146,31 @@ export function App() {
   }
 
   const isMyTurn = room.game.currentPlayerId === session.playerId;
-  const inviteUrl = `${location.origin}${location.pathname}?room=${room.code}`;
+  const inviteLocation = new URL(window.location.href);
+  inviteLocation.search = `?room=${room.code}`;
+  inviteLocation.hash = "";
+  const inviteUrl = inviteLocation.toString();
+
+  async function copyInviteUrl() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteUrl);
+      } else {
+        const fallback = document.createElement("textarea");
+        fallback.value = inviteUrl;
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.append(fallback);
+        fallback.select();
+        const copied = document.execCommand("copy");
+        fallback.remove();
+        if (!copied) throw new Error("복사할 수 없습니다.");
+      }
+      setCopyNotice("전체 초대 링크를 복사했습니다.");
+    } catch {
+      setCopyNotice("복사에 실패했습니다. 방 코드로 참가해 주세요.");
+    }
+  }
 
   return <main className="gameShell">
     <header>
@@ -154,8 +179,9 @@ export function App() {
     </header>
     <section className="roomBar">
       <div><span>방 코드</span><strong>{room.code}</strong></div>
-      <button onClick={() => navigator.clipboard.writeText(inviteUrl)}>초대 링크 복사</button>
+      <button onClick={copyInviteUrl}>{copyNotice.startsWith("전체") ? "복사됨 ✓" : "초대 링크 복사"}</button>
     </section>
+    {copyNotice && <p className="copyNotice" role="status">{copyNotice}</p>}
     <div className="layout">
       <section className="mainPanel">
         {room.game.phase === GamePhase.LOBBY && <Lobby room={room} meId={session.playerId} onReady={() => socket.emit("room:ready", !me?.isReady, finish)} onRoleSet={(id) => socket.emit("room:role-set", id, finish)} onRankNine={(enabled, roleId, customMode) => socket.emit("room:rank-nine", { enabled, roleId, customMode }, finish)} onStart={() => socket.emit("game:start", finish)} />}
@@ -241,9 +267,9 @@ function RoleSelection({ room, privateState, onSelect, onChoosePair, onDiscard }
   const rolePairChoices = byRoleRank(privateState?.rolePairChoices ?? []);
   const roleDiscardChoices = byRoleRank(privateState?.roleDiscardChoices ?? []);
   return <div><div className="phaseTitle"><p className="eyebrow">비밀 역할 선택</p><h2>{privateState?.canSelectRole ? "역할을 선택하세요" : `${picker ?? "다른 플레이어"}님의 선택을 기다리는 중`}</h2><p>{room.game.selectedCount} / {room.game.totalSelections} 선택 완료</p></div>
-    {faceUpRoles.length > 0 && <section className="actionBox"><h3>이번 라운드 공개 제외 역할</h3><div className="roleGrid">{faceUpRoles.map((role) => <div className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties}><RoleFace role={role} description="이번 라운드에는 사용되지 않습니다." /></div>)}</div></section>}
-    {privateState?.canSelectRole && <div className="roleGrid">{roleChoices.map((role) => <button className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onSelect(role.id)}><RoleFace role={role} /></button>)}</div>}
-    {privateState?.canChooseRolePair && <section className="actionBox"><h3>{pendingDiscardRoleId ? "이제 내 두 번째 역할을 고르세요" : "먼저 비공개로 제외할 역할을 고르세요"}</h3><p>{pendingDiscardRoleId ? "제외한 역할은 누구에게도 공개되지 않습니다. 남은 후보에서 내 역할 한 장을 고르면 두 선택이 함께 확정됩니다." : "원작 2인 규칙: 이번 후보 중 한 장은 비공개 제외하고, 다른 한 장은 내 역할로 보관합니다."}</p><div className="roleGrid">{rolePairChoices.filter((role) => pendingDiscardRoleId ? role.id !== pendingDiscardRoleId : true).map((role) => <button className={`roleCard ${pendingDiscardRoleId === role.id ? "selected" : ""}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => pendingDiscardRoleId ? (onChoosePair(role.id, pendingDiscardRoleId), setPendingDiscardRoleId(null)) : setPendingDiscardRoleId(role.id)}><RoleFace role={role} description={pendingDiscardRoleId ? "이 역할을 내 두 번째 역할로 보관" : "이 역할을 비공개로 제외"} /></button>)}</div>{pendingDiscardRoleId && <button className="secondary" onClick={() => setPendingDiscardRoleId(null)}>제외 카드 다시 고르기</button>}</section>}
+    {faceUpRoles.length > 0 && <section className="actionBox"><h3>이번 라운드 공개 제외 역할</h3><div className="roleGrid">{faceUpRoles.map((role) => <div className={`roleCard role-${role.id}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties}><RoleFace role={role} description="이번 라운드에는 사용되지 않습니다." /></div>)}</div></section>}
+    {privateState?.canSelectRole && <div className="roleGrid">{roleChoices.map((role) => <button className={`roleCard role-${role.id}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onSelect(role.id)}><RoleFace role={role} /></button>)}</div>}
+    {privateState?.canChooseRolePair && <section className="actionBox"><h3>{pendingDiscardRoleId ? "이제 내 두 번째 역할을 고르세요" : "먼저 비공개로 제외할 역할을 고르세요"}</h3><p>{pendingDiscardRoleId ? "제외한 역할은 누구에게도 공개되지 않습니다. 남은 후보에서 내 역할 한 장을 고르면 두 선택이 함께 확정됩니다." : "원작 2인 규칙: 이번 후보 중 한 장은 비공개 제외하고, 다른 한 장은 내 역할로 보관합니다."}</p><div className="roleGrid">{rolePairChoices.filter((role) => pendingDiscardRoleId ? role.id !== pendingDiscardRoleId : true).map((role) => <button className={`roleCard role-${role.id} ${pendingDiscardRoleId === role.id ? "selected" : ""}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => pendingDiscardRoleId ? (onChoosePair(role.id, pendingDiscardRoleId), setPendingDiscardRoleId(null)) : setPendingDiscardRoleId(role.id)}><RoleFace role={role} description={pendingDiscardRoleId ? "이 역할을 내 두 번째 역할로 보관" : "이 역할을 비공개로 제외"} /></button>)}</div>{pendingDiscardRoleId && <button className="secondary" onClick={() => setPendingDiscardRoleId(null)}>제외 카드 다시 고르기</button>}</section>}
     {privateState?.canDiscardRole && <section className="actionBox"><h3>비공개로 제외할 역할을 고르세요</h3><p>{room.players.length === 2 ? "두 번째 역할 선택에서는 남은 후보 한 장을 비공개로 버립니다." : "세 번째 플레이어는 첫 역할 선택 뒤 후보 한 장을 비공개로 버립니다."}</p><div className="roleGrid">{roleDiscardChoices.map((role) => <button className="roleCard" key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onDiscard(role.id)}><RoleFace role={role} description="이 역할을 이번 라운드에서 제외" /></button>)}</div></section>}
     {privateState && privateState.selectedRoles.length > 0 && <div className="secret"><span>나의 비밀 역할</span><strong>{privateState.selectedRoles.map((role) => `${role.rank}. ${role.name}`).join(" · ")}</strong></div>}
   </div>;
@@ -283,7 +309,7 @@ function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onB
   const phaseLabel = room.game.phase === GamePhase.INCOME ? "수입 선택" : room.game.phase === GamePhase.ACTION ? "역할 능력" : room.game.phase === GamePhase.BUILD ? "건설" : "턴 마무리";
   return <div className="board">
     <div className="turnBanner"><div><p className="eyebrow">{room.game.currentRoleRank}번 역할 · {phaseLabel}</p><h2>{isMyTurn ? "나의 턴입니다" : `${current?.nickname ?? "플레이어"}님의 턴`}</h2></div><strong>덱 {room.game.deckCount}장</strong></div>
-    {privateState?.selectedRole && <div className="resourceBar"><span>비밀 역할 <b>{privateState.selectedRole.name}</b></span><span>보유 금화 <b>🪙 {privateState.gold}</b></span></div>}
+    {privateState?.selectedRole && <div className="resourceBar"><span className="roleIdentity">나의 현재 역할 <b>{privateState.selectedRole.rank}번 · {privateState.selectedRole.name}</b></span><span>보유 금화 <b>🪙 {privateState.gold}</b></span></div>}
     <section className="hand city"><div className="sectionTitle"><h3>내 도시</h3><span>{myCity.length}채</span></div>{myCity.length === 0 ? <p className="emptyCity">아직 건설한 건물이 없습니다.</p> : <div className="districtGrid">{myCity.map((card) => <District key={card.instanceId} card={card} onClick={() => undefined} />)}</div>}</section>
     {privateState?.canTakeIncome && <section className="actionBox"><h3>수입을 선택하세요</h3><div className="incomeActions"><button className="primary" onClick={() => onIncome("GOLD")}>금화 2개 받기</button><button className="secondary" onClick={() => onIncome("CARDS")}>카드 2장 보기</button></div></section>}
     {privateState && privateState.incomeChoices.length > 0 && <section className="actionBox"><h3>손에 추가할 카드 {privateState.incomeSelectionsRemaining}장을 더 고르세요</h3><div className="districtGrid">{privateState.incomeChoices.map((card) => <District key={card.instanceId} card={card} action="선택" onClick={() => onChooseIncome(card.instanceId)} />)}</div></section>}
