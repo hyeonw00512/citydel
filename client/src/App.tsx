@@ -329,25 +329,16 @@ function OpponentCities({ players, meId }: { players: PublicRoomState["players"]
 }
 
 function CityTable({ players, meId, currentPlayerId }: { players: PublicRoomState["players"]; meId: string; currentPlayerId: string | null }) {
-  const [preview, setPreview] = useState<{ player: PublicRoomState["players"][number]; card: DistrictCard } | null>(null);
-  return <><section className="cityTablePanel"><div className="sectionTitle"><div><h3>도시 전경</h3><span>모든 건물은 공개 정보입니다</span></div><strong>카드를 눌러 확대</strong></div>
-    <div className="cityTableScroller"><div className="cityTable">{players.map((player) => {
-      const districtValue = player.city.reduce((total, card) => total + card.cost + (card.decorationBonus ?? 0), 0);
-      const isMine = player.id === meId;
-      const isCurrentTurn = player.id === currentPlayerId;
-      return <article className={`cityLane ${isMine ? "myCityLane" : ""} ${isCurrentTurn ? "currentCityLane" : ""}`} key={player.id}>
-        <header><strong>{player.nickname}{isMine && <em>내 도시</em>}{isCurrentTurn && <em className="turnChip">진행 중</em>}{player.hasCrown && " 👑"}</strong><span>🪙 {player.gold} · 🏛️ {player.city.length}채 · 가치 {districtValue}</span></header>
-        <div className="tableDistricts">{player.city.length === 0 ? <span className="emptyTableCity">아직 건물이 없습니다</span> : player.city.map((card) => <button className={`tableDistrict color-${card.color.toLowerCase()}`} key={card.instanceId} onClick={() => setPreview({ player, card })} aria-label={`${player.nickname}의 ${card.name} 확대 보기`}>
-          {DISTRICT_ART[card.definitionId] ? <img src={DISTRICT_ART[card.definitionId]} alt="" /> : <span className="tableDistrictFallback" />}
-          <b>{card.name}</b><small>🪙 {card.cost}</small>
-        </button>)}</div>
-      </article>;
-    })}</div></div>
-  </section>
-  {preview && <div className="cardPreviewOverlay" role="dialog" aria-modal="true" aria-label={`${preview.card.name} 카드 확대`} onClick={() => setPreview(null)}><section className="cardPreview" onClick={(event) => event.stopPropagation()}><div className="sectionTitle"><div><h3>{preview.player.nickname}님의 도시</h3><span>🪙 {preview.player.gold} · 건물 {preview.player.city.length}채</span></div><button className="ghost" onClick={() => setPreview(null)}>닫기</button></div><District card={preview.card} onClick={() => undefined} /></section></div>}
+  const [expanded, setExpanded] = useState<PublicRoomState["players"][number] | null>(null);
+  const opponents = players.filter((player) => player.id !== meId);
+  if (opponents.length === 0) return null;
+  return <><section className="opponentTable"><div className="sectionTitle"><div><h3>상대 도시</h3><span>요약을 눌러 공개된 건물을 확인하세요</span></div></div><div className="opponentSummaryGrid">{opponents.map((player) => {
+    const value = player.city.reduce((total, card) => total + card.cost + (card.decorationBonus ?? 0), 0);
+    return <button className={`opponentSummary ${player.id === currentPlayerId ? "currentOpponent" : ""}`} key={player.id} onClick={() => setExpanded(player)}><strong>{player.nickname}{player.hasCrown && " 👑"}</strong><span>🪙 {player.gold} · 🏛️ {player.city.length}채</span><small>도시 가치 {value} · 펼쳐 보기</small></button>;
+  })}</div></section>
+  {expanded && <div className="cardPreviewOverlay" role="dialog" aria-modal="true" aria-label={`${expanded.nickname}의 도시`} onClick={() => setExpanded(null)}><section className="opponentField" onClick={(event) => event.stopPropagation()}><div className="sectionTitle"><div><h3>{expanded.nickname}님의 도시</h3><span>🪙 {expanded.gold} · 건물 {expanded.city.length}채</span></div><button className="ghost" onClick={() => setExpanded(null)}>닫기</button></div>{expanded.city.length === 0 ? <p className="emptyCity">아직 건물이 없습니다.</p> : <div className="districtGrid">{expanded.city.map((card) => <District key={card.instanceId} card={card} onClick={() => undefined} />)}</div>}</section></div>}
   </>;
 }
-
 function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onBuild, onDistrictAbility, onAbility, onColorIncome, onMagician, onWarlord, onScholar, onChooseScholar, onGraveyardRecover, onArtist, onSpy, onSeer, onWizard, onMagistrate, onEmperor, onSkipAction, onEnd }: {
   room: PublicRoomState;
   privateState: PrivatePlayerState | null;
@@ -380,7 +371,7 @@ function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onB
     <div className="turnBanner"><div><p className="eyebrow">{room.game.currentRoleRank}번 역할 · {phaseLabel}</p><h2>{isMyTurn ? "나의 턴입니다" : `${current?.nickname ?? "플레이어"}님의 턴`}</h2></div><strong>덱 {room.game.deckCount}장</strong></div>
     {privateState?.selectedRole && <div className="resourceBar"><span className="roleIdentity">나의 현재 역할 <b>{privateState.selectedRole.rank}번 · {privateState.selectedRole.name}</b></span><span>보유 금화 <b>🪙 {privateState.gold}</b></span></div>}
     <CityTable players={room.players} meId={privateState?.playerId ?? ""} currentPlayerId={room.game.currentPlayerId} />
-    <section className="hand city"><div className="sectionTitle"><h3>내 도시</h3><span>{myCity.length}채</span></div>{myCity.length === 0 ? <p className="emptyCity">아직 건설한 건물이 없습니다.</p> : <div className="districtGrid">{myCity.map((card) => <District key={card.instanceId} card={card} onClick={() => undefined} />)}</div>}</section>
+    <section className="personalTable">{privateState?.selectedRole && <article className={`roleCard role-${privateState.selectedRole.id} activeRoleCard`} style={{ "--role-color": privateState.selectedRole.color } as React.CSSProperties}><RoleFace role={privateState.selectedRole} /></article>}<section className="hand city personalCity"><div className="sectionTitle"><h3>내 도시</h3><span>🏛️ {myCity.length}채 · 공개 필드</span></div>{myCity.length === 0 ? <p className="emptyCity">아직 건설한 건물이 없습니다.</p> : <div className="districtGrid">{myCity.map((card) => <District key={card.instanceId} card={card} onClick={() => undefined} />)}</div>}</section></section>
     {privateState?.canTakeIncome && <section className="actionBox"><h3>수입을 선택하세요</h3><div className="incomeActions"><button className="primary" onClick={() => onIncome("GOLD")}>금화 2개 받기</button><button className="secondary" onClick={() => onIncome("CARDS")}>카드 2장 보기</button></div></section>}
     {privateState && privateState.incomeChoices.length > 0 && <section className="actionBox"><h3>손에 추가할 카드 {privateState.incomeSelectionsRemaining}장을 더 고르세요</h3><div className="districtGrid">{privateState.incomeChoices.map((card) => <District key={card.instanceId} card={card} action="선택" onClick={() => onChooseIncome(card.instanceId)} />)}</div></section>}
     {isMyTurn && room.game.phase === GamePhase.ACTION && privateState?.canUseAbility && privateState.selectedRole?.abilityType === "COLOR_INCOME" && myCity.some((card) => card.definitionId === "school_of_magic") && <section className="actionBox"><h3>마법 학교의 색상 수입</h3><p>이번 수입에 적용할 건물 색상을 고르세요.</p><div className="incomeActions">{(["NOBLE", "RELIGIOUS", "TRADE", "MILITARY"] as DistrictColor[]).map((color) => <button className="primary" key={color} onClick={() => onColorIncome(color)}>{color} 색 수입</button>)}</div></section>}
