@@ -201,7 +201,7 @@ export function App() {
     <div className="layout">
       <section className="mainPanel">
         {room.game.phase === GamePhase.LOBBY && <Lobby room={room} meId={session.playerId} onReady={() => socket.emit("room:ready", !me?.isReady, finish)} onRoleSet={(id) => socket.emit("room:role-set", id, finish)} onRankNine={(enabled, roleId, customMode) => socket.emit("room:rank-nine", { enabled, roleId, customMode }, finish)} onStart={() => socket.emit("game:start", finish)} />}
-        {room.game.phase === GamePhase.ROLE_SELECTION && <RoleSelection room={room} privateState={privateState} onSelect={(id) => socket.emit("role:select", id, finish)} />}
+        {room.game.phase === GamePhase.ROLE_SELECTION && <RoleSelection room={room} privateState={privateState} onSelect={(id) => socket.emit("role:select", id, finish)} onDiscard={(id) => socket.emit("role:discard", id, finish)} />}
         {room.game.phase === GamePhase.GAME_END && <GameEnd room={room} meId={session.playerId} canRematch={Boolean(me?.isHost)} onRematch={() => socket.emit("game:rematch", finish)} />}
         {[GamePhase.TURN_START, GamePhase.INCOME, GamePhase.ACTION, GamePhase.BUILD, GamePhase.TURN_END].includes(room.game.phase) && <GameBoard
           room={room}
@@ -263,26 +263,28 @@ function Chat({ messages, onSend }: { messages: PublicRoomState["chat"]; onSend:
 function Lobby({ room, meId, onReady, onRoleSet, onRankNine, onStart }: { room: PublicRoomState; meId: string; onReady: () => void; onRoleSet: (id: string) => void; onRankNine: (enabled: boolean, roleId: string, customMode: boolean) => void; onStart: () => void }) {
   const me = room.players.find((player) => player.id === meId)!;
   const playerCount = room.players.length;
-  const rankNineRequired = playerCount === 3 || playerCount === 8;
+  const rankNineRequired = room.roleSetId !== "CLASSIC" && (playerCount === 3 || playerCount === 8);
   const queenForbidden = playerCount === 3 || playerCount === 4;
-  const canStart = me.isHost && playerCount >= 2 && room.players.every((player) => player.isReady) && (!rankNineRequired || room.rankNineEnabled) && !(queenForbidden && room.rankNineEnabled && room.rankNineRoleId === "queen");
+  const canStart = me.isHost && playerCount >= 2 && (room.roleSetId !== "CLASSIC" || playerCount <= 7) && room.players.every((player) => player.isReady) && (!rankNineRequired || room.rankNineEnabled) && !(queenForbidden && room.rankNineEnabled && room.rankNineRoleId === "queen");
   const recommendedRankNineRoleId = room.roleSets.find((set) => set.id === room.roleSetId)!.recommendedRankNineRoleId;
   const chooseRankNineRole = (roleId: string) => onRankNine(true, roleId, roleId !== recommendedRankNineRoleId);
   return <div className="lobbyPanel"><div className="lobbyIntro"><div className="bigIcon">⌛</div><div><h2>플레이어를 기다리는 중</h2><p>직업 세트를 정하고 모두 준비하면 게임을 시작할 수 있습니다.</p></div></div>
     <section className="roleSetSection"><div className="sectionTitle"><h3>이번 게임의 직업 세트</h3><span>{me.isHost ? "방장이 선택할 수 있습니다" : "방장 선택 대기"}</span></div><div className="roleSetGrid">{room.roleSets.map((set) => <button key={set.id} className={`roleSetCard ${room.roleSetId === set.id ? "selected" : ""}`} disabled={!me.isHost || me.isReady} onClick={() => onRoleSet(set.id)}><div><strong>{set.name}</strong>{room.roleSetId === set.id && <em>선택됨</em>}</div><p>{set.description}</p><ol>{set.roles.map((role) => <li key={role.rank}><span>{role.rank}</span>{role.name}</li>)}</ol></button>)}</div></section>
-    <section className="rankNineSection"><div className="sectionTitle"><div><h3>9번 직업 모드 · {room.rankNineCustomMode ? "커스텀 조합" : "세트 권장 조합"}</h3><p>3·8인은 필수, 4~7인은 선택입니다. 여왕은 3·4인 게임에서 사용할 수 없습니다.</p></div><button className={room.rankNineEnabled ? "toggle active" : "toggle"} disabled={!me.isHost || me.isReady || rankNineRequired} onClick={() => onRankNine(!room.rankNineEnabled, room.rankNineRoleId, room.rankNineCustomMode)}>{room.rankNineEnabled ? "켜짐" : "꺼짐"}</button></div>{room.rankNineCustomMode && <button className="secondary" disabled={!me.isHost || me.isReady} onClick={() => onRankNine(room.rankNineEnabled, recommendedRankNineRoleId, false)}>권장 조합으로 복귀</button>}<div className="rankNineGrid">{room.rankNineRoles.map((role) => <button key={role.id} className={`rankNineCard ${room.rankNineRoleId === role.id ? "selected" : ""}`} disabled={!me.isHost || me.isReady || !room.rankNineEnabled || (queenForbidden && role.id === "queen")} onClick={() => chooseRankNineRole(role.id)}><strong>9 · {role.name}</strong><span>{role.description}</span></button>)}</div></section>
+    <section className="rankNineSection"><div className="sectionTitle"><div><h3>9번 직업 모드 · {room.rankNineCustomMode ? "커스텀 조합" : "세트 권장 조합"}</h3><p>확장 세트에서는 3·8인에 9번 직업이 필요합니다. 원작 기본 세트는 기본 8직업으로 2~7인 게임을 진행합니다.</p></div><button className={room.rankNineEnabled ? "toggle active" : "toggle"} disabled={!me.isHost || me.isReady || rankNineRequired} onClick={() => onRankNine(!room.rankNineEnabled, room.rankNineRoleId, room.rankNineCustomMode)}>{room.rankNineEnabled ? "켜짐" : "꺼짐"}</button></div>{room.rankNineCustomMode && <button className="secondary" disabled={!me.isHost || me.isReady} onClick={() => onRankNine(room.rankNineEnabled, recommendedRankNineRoleId, false)}>권장 조합으로 복귀</button>}<div className="rankNineGrid">{room.rankNineRoles.map((role) => <button key={role.id} className={`rankNineCard ${room.rankNineRoleId === role.id ? "selected" : ""}`} disabled={!me.isHost || me.isReady || !room.rankNineEnabled || (queenForbidden && role.id === "queen")} onClick={() => chooseRankNineRole(role.id)}><strong>9 · {role.name}</strong><span>{role.description}</span></button>)}</div></section>
     <div className="lobbyActions"><button className={me.isReady ? "secondary" : "primary"} onClick={onReady}>{me.isReady ? "준비 취소" : "준비 완료"}</button>
     {me.isHost && <button className="primary" disabled={!canStart} onClick={onStart}>게임 시작</button>}</div>
   </div>;
 }
 
-function RoleSelection({ room, privateState, onSelect }: { room: PublicRoomState; privateState: PrivatePlayerState | null; onSelect: (id: string) => void }) {
+function RoleSelection({ room, privateState, onSelect, onDiscard }: { room: PublicRoomState; privateState: PrivatePlayerState | null; onSelect: (id: string) => void; onDiscard: (id: string) => void }) {
   const picker = room.players.find((player) => player.id === room.game.selectionPlayerId)?.nickname;
   const faceUpRoles = byRoleRank(room.game.faceUpDiscardedRoles);
   const roleChoices = byRoleRank(privateState?.roleChoices ?? []);
+  const roleDiscardChoices = byRoleRank(privateState?.roleDiscardChoices ?? []);
   return <div><div className="phaseTitle"><p className="eyebrow">비밀 역할 선택</p><h2>{privateState?.canSelectRole ? "역할을 선택하세요" : `${picker ?? "다른 플레이어"}님의 선택을 기다리는 중`}</h2><p>{room.game.selectedCount} / {room.game.totalSelections} 선택 완료</p></div>
     {faceUpRoles.length > 0 && <section className="actionBox"><h3>이번 라운드 공개 제외 역할</h3><p>공식 규칙에 따라 이번 라운드에는 아무도 고를 수 없는 공개 카드입니다. 4번 역할은 공개 제외되지 않습니다.</p><div className="roleGrid">{faceUpRoles.map((role) => <div className={`roleCard role-${role.id}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties}><RoleFace role={role} description="이번 라운드에는 사용되지 않습니다." /></div>)}</div></section>}
     {privateState?.canSelectRole && <div className="roleGrid">{roleChoices.map((role) => <button className={`roleCard role-${role.id}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onSelect(role.id)}><RoleFace role={role} /></button>)}</div>}
+    {privateState?.canDiscardRole && <section className="actionBox"><h3>비공개로 제외할 역할을 고르세요</h3><p>원작 2인 규칙에 따라 이 카드는 누구에게도 공개되지 않습니다. 역할 하나를 비공개로 제외한 뒤 남은 카드를 다음 플레이어에게 넘깁니다.</p><div className="roleGrid">{roleDiscardChoices.map((role) => <button className={`roleCard role-${role.id}`} key={role.id} style={{ "--role-color": role.color } as React.CSSProperties} onClick={() => onDiscard(role.id)}><RoleFace role={role} description="이 역할을 비공개로 제외" /></button>)}</div></section>}
 
 
     {privateState && privateState.selectedRoles.length > 0 && <div className="secret"><span>나의 비밀 역할</span><strong>{privateState.selectedRoles.map((role) => `${role.rank}. ${role.name}`).join(" · ")}</strong></div>}

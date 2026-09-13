@@ -22,7 +22,7 @@ export class ScoreManager {
         const completionBonus = player.city.length >= 8
           ? player.id === room.game.firstCompletedPlayerId ? 4 : 2
           : 0;
-        return {
+        return { score: {
           playerId: player.id,
           nickname: player.nickname,
           districtPoints,
@@ -31,8 +31,9 @@ export class ScoreManager {
           decorationPoints,
           specialDistrictPoints,
           total: districtPoints + decorationPoints + specialDistrictPoints + colorBonus + completionBonus
-        };
+        }, districtPoints, gold: player.gold };
       })
-      .sort((left, right) => right.total - left.total || left.nickname.localeCompare(right.nickname, "ko"));
+      .sort((left, right) => right.score.total - left.score.total || right.districtPoints - left.districtPoints || right.gold - left.gold || left.score.nickname.localeCompare(right.score.nickname, "ko"))
+      .map(({ score }) => score);
   }
 }

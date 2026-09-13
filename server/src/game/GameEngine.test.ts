@@ -28,6 +28,7 @@ function completeRoleSelection(engine: GameEngine, room: Room, preserveAllTurns 
   // 기존 능력 단위 검증은 첫 역할만 진행하던 시나리오다. 두 번째 역할은
   // 아래 통합 검증에서 다루고, 여기서는 기존 역할의 행동 단위만 유지한다.
   const firstRoles = new Map([...room.game.rolesByPlayerId.entries()].map(([playerId, roles]) => [playerId, roles[0]!]));
+  for (const [playerId, role] of firstRoles) room.game.rolesByPlayerId.set(playerId, [role]);
   room.game.turnOrder = room.game.turnOrder.filter((turn) => firstRoles.get(turn.playerId)?.id === turn.role.id);
   room.game.turnIndex = 0;
   (engine as unknown as { startCurrentTurn(target: Room): void }).startCurrentTurn(room);
@@ -408,9 +409,17 @@ describe("authoritative game flow", () => {
     expect(first.room.game.rolesByPlayerId.size).toBe(1);
 
     engine.selectRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleChoices.sort((left, right) => right.rank - left.rank)[0]!.id);
+    const secondDiscard = engine.toPrivateState(first.room, second.session.playerId).roleDiscardChoices[0]!;
+    engine.discardRole(first.room, second.session.playerId, secondDiscard.id);
+    expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
     expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
     engine.selectRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleChoices.sort((left, right) => right.rank - left.rank)[0]!.id);
     expect(first.room.game.phase).toBe(GamePhase.INCOME);
+    if (engine.toPublicState(first.room).currentPlayerId !== firstPlayer.id) {
+      engine.takeIncome(first.room, second.session.playerId, "GOLD");
+      engine.skipAction(first.room, second.session.playerId);
+      engine.endTurn(first.room, second.session.playerId);
+    }
     expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
     expect(first.room.game.phase).toBe(GamePhase.ACTION);
     expect(engine.autoAdvanceDisconnectedPlayer(first.room, firstPlayer.id)).toBe(true);
@@ -768,7 +777,7 @@ describe("authoritative game flow", () => {
     expect(() => rooms.setRankNine(first.room, first.session.playerId, false, "artist", true)).toThrow("로비에서만");
   });
 
-  it("enforces revised rank-nine requirements on the server", () => {
+  it("starts the original classic set with eight roles in a three-player game", () => {
     const engine = new GameEngine();
     const rooms = new RoomManager(engine);
     const first = rooms.create("첫번째", "socket-1");
@@ -776,11 +785,9 @@ describe("authoritative game flow", () => {
     rooms.join(first.room.code, "세번째", "socket-3");
     first.room.players.forEach((player) => { player.isReady = true; });
 
-    expect(() => engine.start(first.room, first.session.playerId)).toThrow("3인 게임에서는 9번 직업을 사용해야");
-    expect(() => rooms.setRankNine(first.room, first.session.playerId, true, "queen", false)).toThrow("여왕");
-    rooms.setRankNine(first.room, first.session.playerId, true, "artist", true);
     engine.start(first.room, first.session.playerId);
     expect(first.room.game.phase).toBe(GamePhase.ROLE_SELECTION);
+    expect(first.room.game.availableRoleIds).toHaveLength(7);
   });
 
   it("discards the required public and private roles without exposing private roles", () => {
@@ -802,7 +809,7 @@ describe("authoritative game flow", () => {
     expect(publicPayload).not.toContain(first.room.game.faceDownDiscardedRoleIds[0]!);
   });
 
-  it("keeps the initial facedown role unavailable to the final player in a seven-player game", () => {
+  it("lets the final player in a seven-player game choose the initial facedown role", () => {
     const engine = new GameEngine();
     const rooms = new RoomManager(engine);
     const first = rooms.create("첫번째", "socket-1");
@@ -818,16 +825,16 @@ describe("authoritative game flow", () => {
     }
     const finalPlayerId = first.room.game.selectionOrder[first.room.game.selectionIndex]!;
     const finalChoices = engine.toPrivateState(first.room, finalPlayerId).roleChoices;
-    expect(finalChoices).toHaveLength(1);
-    expect(finalChoices.map((role) => role.id)).not.toContain(initialFaceDownRoleId);
+    expect(finalChoices).toHaveLength(2);
+    expect(finalChoices.map((role) => role.id)).toContain(initialFaceDownRoleId);
 
-    engine.selectRole(first.room, finalPlayerId, finalChoices[0]!.id);
+    engine.selectRole(first.room, finalPlayerId, initialFaceDownRoleId);
     expect(first.room.game.faceDownDiscardedRoleIds).toHaveLength(1);
-    expect(first.room.game.faceDownDiscardedRoleIds).toContain(initialFaceDownRoleId);
+    expect(first.room.game.faceDownDiscardedRoleIds).not.toContain(initialFaceDownRoleId);
     expect(first.room.game.turnOrder).toHaveLength(7);
   });
 
-  it("keeps all two-player private exclusions server-controlled", () => {
+  it("follows the original two-player private-discard order", () => {
     const engine = new GameEngine();
     const rooms = new RoomManager(engine);
     const first = rooms.create("첫번째", "socket-1");
@@ -835,23 +842,21 @@ describe("authoritative game flow", () => {
     first.room.players.forEach((player) => { player.isReady = true; });
     engine.start(first.room, first.session.playerId);
 
-    for (const playerId of [first.session.playerId, second.session.playerId]) {
-      const role = engine.toPrivateState(first.room, playerId).roleChoices[0]!;
-      engine.selectRole(first.room, playerId, role.id);
-    }
-    const firstSecondChoice = engine.toPrivateState(first.room, first.session.playerId);
-    expect(firstSecondChoice.canChooseRolePair).toBe(false);
-    engine.selectRole(first.room, first.session.playerId, firstSecondChoice.roleChoices[0]!.id);
+    engine.selectRole(first.room, first.session.playerId, engine.toPrivateState(first.room, first.session.playerId).roleChoices[0]!.id);
+    engine.selectRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleChoices[0]!.id);
+    expect(engine.toPrivateState(first.room, second.session.playerId).canDiscardRole).toBe(true);
+    engine.discardRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleDiscardChoices[0]!.id);
 
-    const secondSecondChoice = engine.toPrivateState(first.room, second.session.playerId);
-    expect(secondSecondChoice.canChooseRolePair).toBe(false);
-    engine.selectRole(first.room, second.session.playerId, secondSecondChoice.roleChoices[0]!.id);
+    engine.selectRole(first.room, first.session.playerId, engine.toPrivateState(first.room, first.session.playerId).roleChoices[0]!.id);
+    expect(engine.toPrivateState(first.room, first.session.playerId).canDiscardRole).toBe(true);
+    engine.discardRole(first.room, first.session.playerId, engine.toPrivateState(first.room, first.session.playerId).roleDiscardChoices[0]!.id);
+    engine.selectRole(first.room, second.session.playerId, engine.toPrivateState(first.room, second.session.playerId).roleChoices[0]!.id);
     expect(first.room.game.phase).toBe(GamePhase.INCOME);
     expect(first.room.game.turnOrder).toHaveLength(4);
     expect(first.room.game.faceDownDiscardedRoleIds).toHaveLength(4);
   });
 
-  it("has the server randomly discard one role after the first three-player selection round", () => {
+  it("keeps the three-player final unchosen role facedown", () => {
     const engine = new GameEngine();
     const rooms = new RoomManager(engine);
     const first = rooms.create("첫번째", "socket-1");
@@ -867,7 +872,7 @@ describe("authoritative game flow", () => {
       engine.selectRole(first.room, playerId, role.id);
     }
     expect(engine.toPrivateState(first.room, third.session.playerId).canDiscardRole).toBe(false);
-    expect(first.room.game.faceDownDiscardedRoleIds).toHaveLength(2);
+    expect(first.room.game.faceDownDiscardedRoleIds).toHaveLength(1);
     completeRoleSelection(engine, first.room, true);
 
     expect(first.room.game.turnOrder).toHaveLength(6);

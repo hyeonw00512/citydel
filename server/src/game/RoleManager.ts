@@ -34,6 +34,10 @@ export class RoleManager {
     const choices = room.game.availableRoleIds
       .map((id) => roles.find((role) => role.id === id))
       .filter((role): role is RoleDefinition => Boolean(role));
+    if (this.canChooseInitialFaceDownRole(room)) {
+      const initialFaceDownRole = roles.find((role) => role.id === room.game.faceDownDiscardedRoleIds[0]);
+      if (initialFaceDownRole) choices.push(initialFaceDownRole);
+    }
     return choices;
   }
 
@@ -63,7 +67,10 @@ export class RoleManager {
     } else {
       room.game.availableRoleIds = room.game.availableRoleIds.filter((id) => id !== roleId);
     }
-    if (this.requiresThreePlayerRandomDiscard(room)) this.discardRandomRole(room);
+    if (this.requiresTwoPlayerDiscard(room)) {
+      room.game.pendingRoleDiscardPlayerId = playerId;
+      return;
+    }
     room.game.selectionIndex += 1;
     if (room.game.selectionIndex >= room.game.selectionOrder.length) {
       room.game.faceDownDiscardedRoleIds.push(...room.game.availableRoleIds);
@@ -76,7 +83,7 @@ export class RoleManager {
     void playerId;
     void roleId;
     void discardRoleId;
-    throw new Error("비공개 제외 역할은 서버가 무작위로 처리합니다.");
+    throw new Error("2인 게임에서는 역할 선택 뒤 비공개 제외 절차를 진행해 주세요.");
   }
 
   discard(room: Room, playerId: string, roleId: string): void {
@@ -108,15 +115,13 @@ export class RoleManager {
   }
 
 
-  private requiresThreePlayerRandomDiscard(room: Room): boolean {
-    return room.players.size === 3 && room.game.selectionIndex === 2;
+  private canChooseInitialFaceDownRole(room: Room): boolean {
+    const isLastSelection = room.game.selectionIndex === room.game.selectionOrder.length - 1;
+    return isLastSelection && [7, 8].includes(room.players.size) && room.game.faceDownDiscardedRoleIds.length === 1;
   }
 
-  private discardRandomRole(room: Room): void {
-    if (room.game.availableRoleIds.length === 0) return;
-    const index = Math.floor(Math.random() * room.game.availableRoleIds.length);
-    const [roleId] = room.game.availableRoleIds.splice(index, 1);
-    if (roleId) room.game.faceDownDiscardedRoleIds.push(roleId);
+  private requiresTwoPlayerDiscard(room: Room): boolean {
+    return room.players.size === 2 && [1, 2].includes(room.game.selectionIndex);
   }
 
   private shuffle<T>(items: readonly T[]): T[] {

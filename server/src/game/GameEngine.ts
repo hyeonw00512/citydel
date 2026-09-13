@@ -457,7 +457,8 @@ export class GameEngine {
 
   private validateRankNineRules(room: Room): void {
     const playerCount = room.players.size;
-    if ([3, 8].includes(playerCount) && !room.rankNineEnabled) {
+    if (room.roleSetId === "CLASSIC" && playerCount > 7) throw new Error("원작 기본 규칙은 최대 7인까지 지원합니다.");
+    if (room.roleSetId !== "CLASSIC" && [3, 8].includes(playerCount) && !room.rankNineEnabled) {
       throw new Error(`${playerCount}인 게임에서는 9번 직업을 사용해야 합니다.`);
     }
     if ([3, 4].includes(playerCount) && room.rankNineEnabled && room.rankNineRoleId === "queen") {
