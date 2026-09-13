@@ -339,12 +339,7 @@ export class GameEngine {
         this.logs.add(room, "연결이 끊긴 플레이어의 역할 카드가 비공개로 자동 제외되었습니다.");
         return true;
       }
-      const pairChoices = this.roles.getPairChoices(room, playerId);
-      if (pairChoices.length >= 2) {
-        this.chooseRolePair(room, playerId, pairChoices[0]!.id, pairChoices[1]!.id);
-        this.logs.add(room, "연결이 끊긴 플레이어의 두 번째 역할과 비공개 제외 역할이 자동 선택되었습니다.");
-        return true;
-      }
+
       const role = this.roles.getChoices(room, playerId)[0];
       if (!role) return false;
       this.selectRole(room, playerId, role.id);
