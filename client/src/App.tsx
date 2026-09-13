@@ -127,8 +127,11 @@ export function App() {
   }
 
   function join(code = roomCode, playerToken?: string, silent = false) {
+    const normalizedCode = extractRoomCode(code);
     if (!silent) setMessage("");
-    socket.emit("room:join", { roomCode: code, nickname, playerToken }, (result) => {
+    if (!normalizedCode) { setMessage("방 코드 또는 초대 링크를 확인해 주세요."); return; }
+    setRoomCode(normalizedCode);
+    socket.emit("room:join", { roomCode: normalizedCode, nickname, playerToken }, (result) => {
       if (result.ok && result.data) saveSession(result.data);
       else if (!silent) setMessage(result.error ?? "참가하지 못했습니다.");
     });
@@ -150,7 +153,7 @@ export function App() {
         <p className="subtitle">비밀 역할을 선택하고, 가장 위대한 도시를 세우세요.</p>
         <label>닉네임<input value={nickname} maxLength={16} placeholder="2~16자" onChange={(event) => setNickname(event.target.value)} /></label>
         <div className="joinRow">
-          <input aria-label="방 코드" value={roomCode} maxLength={6} placeholder="방 코드" onChange={(event) => setRoomCode(event.target.value.toUpperCase())} />
+          <input aria-label="방 코드 또는 초대 링크" value={roomCode} placeholder="방 코드 또는 초대 링크 붙여넣기" onChange={(event) => setRoomCode(event.target.value)} />
           <button onClick={() => join()} disabled={!connected}>참가</button>
         </div>
         <div className="divider"><span>또는</span></div>
@@ -166,25 +169,11 @@ export function App() {
   inviteLocation.hash = "";
   const inviteUrl = inviteLocation.toString();
 
-  async function copyInviteUrl() {
+  async function copyText(value: string, label: string) {
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(inviteUrl);
-      } else {
-        const fallback = document.createElement("textarea");
-        fallback.value = inviteUrl;
-        fallback.style.position = "fixed";
-        fallback.style.opacity = "0";
-        document.body.append(fallback);
-        fallback.select();
-        const copied = document.execCommand("copy");
-        fallback.remove();
-        if (!copied) throw new Error("복사할 수 없습니다.");
-      }
-      setCopyNotice("전체 초대 링크를 복사했습니다.");
-    } catch {
-      setCopyNotice("복사에 실패했습니다. 방 코드로 참가해 주세요.");
-    }
+      await navigator.clipboard.writeText(value);
+      setCopyNotice(`${label}를 복사했습니다.`);
+    } catch { setCopyNotice("복사에 실패했습니다."); }
   }
 
   return <main className="gameShell">
@@ -195,7 +184,7 @@ export function App() {
     {showRulesGuide && <RulesGuide onClose={() => setShowRulesGuide(false)} />}
     <section className="roomBar">
       <div><span>방 코드</span><strong>{room.code}</strong></div>
-      <button onClick={copyInviteUrl}>{copyNotice.startsWith("전체") ? "복사됨 ✓" : "초대 링크 복사"}</button>
+      <div className="inviteActions"><button onClick={() => copyText(room.code, "방 코드")}>코드 복사</button><button onClick={() => copyText(inviteUrl, "초대 링크")}>링크 복사</button></div>
     </section>
     {copyNotice && <p className="copyNotice" role="status">{copyNotice}</p>}
     <div className="layout">
@@ -384,7 +373,7 @@ function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onB
     {isMyTurn && room.game.phase === GamePhase.ACTION && privateState?.selectedRole?.abilityType === "MAGISTRATE_THREAT" && !privateState.abilityUsed && <section className="actionBox"><h3>위협 표식 배치</h3><div className="roleGrid targetGrid">{room.players.filter((player) => player.id !== privateState.playerId).map((player) => <button className="roleCard" key={player.id} onClick={() => onMagistrate(player.id)}><h3>{player.nickname}</h3><p>다음 건설에 추가 금화 1개</p></button>)}</div></section>}
     {isMyTurn && room.game.phase === GamePhase.ACTION && privateState?.selectedRole?.abilityType === "EMPEROR_CROWN" && !privateState.abilityUsed && <section className="actionBox"><h3>왕관을 넘길 플레이어 선택</h3><p>현재 왕관 보유자에게서 금화 1개 또는 무작위 설계도 1장을 받습니다.</p><div className="roleGrid targetGrid">{room.players.filter((player) => player.id !== privateState.playerId).map((player) => <button className="roleCard" key={player.id} onClick={() => onEmperor(player.id)}><h3>{player.nickname}</h3><p>{player.hasCrown ? "현재 왕관 보유자" : "새 왕관 보유자로 지정"}</p></button>)}</div></section>}
     {privateState?.canUseDistrictAbility && myCity.some((card) => card.definitionId === "smithy" || card.definitionId === "laboratory") && <section className="actionBox"><h3>효과 건물 사용</h3><div className="incomeActions">{myCity.some((card) => card.definitionId === "smithy") && <button className="primary" disabled={privateState.gold < 2} onClick={() => onDistrictAbility({ type: "SMITHY" })}>대장간: 금화 2개로 카드 3장</button>}</div>{myCity.some((card) => card.definitionId === "laboratory") && <div className="districtGrid">{privateState.hand.map((card) => <District key={card.instanceId} card={card} action="연구소에서 버리고 금화 1개" onClick={() => onDistrictAbility({ type: "LABORATORY", cardInstanceId: card.instanceId })} />)}</div>}</section>}
-    <section className="hand"><div className="sectionTitle"><h3>내 손패</h3><span>{privateState?.canBuild ? `건설 가능 ${privateState.buildsRemaining}회 · ` : ""}{privateState?.hand.length ?? 0}장</span></div><div className="districtGrid">{privateState?.hand.map((card) => <District key={card.instanceId} card={card} action={privateState.canBuild && privateState.gold >= card.cost ? "건설" : undefined} onClick={() => onBuild(card.instanceId, card)} />)}</div></section>
+    <details className="hand tableDrawer"><summary><span>내 손패</span><b>{privateState?.canBuild ? `건설 가능 ${privateState.buildsRemaining}회 · ` : ""}{privateState?.hand.length ?? 0}장</b></summary><div className="districtGrid">{privateState?.hand.map((card) => <District key={card.instanceId} card={card} action={privateState.canBuild && privateState.gold >= card.cost ? "건설" : undefined} onClick={() => onBuild(card.instanceId, card)} />)}</div></details>
     {isMyTurn && [GamePhase.BUILD, GamePhase.TURN_END].includes(room.game.phase) && <div className="turnActions"><button className="primary" onClick={onEnd}>{room.game.phase === GamePhase.BUILD ? "건설하지 않고 턴 종료" : "턴 종료"}</button></div>}
   </div>;
 }
@@ -448,6 +437,11 @@ function finish<T>(result: ActionResult<T>, success?: (data: T) => void) {
   if (result.ok && result.data !== undefined) success?.(result.data);
 }
 
+function extractRoomCode(value: string): string {
+  const input = value.trim();
+  if (/^[A-Za-z0-9]{6}$/.test(input)) return input.toUpperCase();
+  try { return new URL(input).searchParams.get("room")?.trim().toUpperCase() ?? ""; } catch { return ""; }
+}
 function readSession(): SessionData | null {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as SessionData | null; }
   catch { return null; }
