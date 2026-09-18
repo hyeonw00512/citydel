@@ -92,7 +92,7 @@ export function App() {
     const onConnect = () => {
       setConnected(true);
       const saved = readSession();
-      if (saved && nickname) join(saved.roomCode, saved.playerToken, true);
+      if (saved && nickname) join(saved.roomCode, saved.playerToken, true, Boolean(saved.isSpectator));
     };
     const onDisconnect = () => setConnected(false);
     const onRoom = (state: PublicRoomState) => setRoom(state);
@@ -105,19 +105,21 @@ export function App() {
     socket.on("player:private", onPrivate);
     socket.on("chat:message", onChat);
     socket.on("game:error", onError);
-    if (socket.connected && session && nickname && !room) join(session.roomCode, session.playerToken, true);
+    if (socket.connected && session && nickname && !room) join(session.roomCode, session.playerToken, true, Boolean(session.isSpectator));
     return () => {
       socket.off("connect", onConnect); socket.off("disconnect", onDisconnect);
       socket.off("room:state", onRoom); socket.off("player:private", onPrivate); socket.off("chat:message", onChat); socket.off("game:error", onError);
     };
   }, []);
 
+  const isSpectator = Boolean(session?.isSpectator);
   const me = useMemo(() => room?.players.find((player) => player.id === session?.playerId), [room, session]);
 
   function saveSession(data: SessionData) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("crown-city-nickname", nickname.trim());
     setSession(data);
+    if (data.isSpectator) setPrivateState(null);
     history.replaceState(null, "", `?room=${data.roomCode}`);
   }
 
@@ -126,14 +128,23 @@ export function App() {
     socket.emit("room:create", nickname, (result) => finish(result, saveSession));
   }
 
-  function join(code = roomCode, playerToken?: string, silent = false) {
+  function join(code = roomCode, playerToken?: string, silent = false, spectator = false) {
     const normalizedCode = extractRoomCode(code);
     if (!silent) setMessage("");
     if (!normalizedCode) { setMessage("방 코드 또는 초대 링크를 확인해 주세요."); return; }
     setRoomCode(normalizedCode);
-    socket.emit("room:join", { roomCode: normalizedCode, nickname, playerToken }, (result) => {
+    socket.emit(spectator ? "room:spectate" : "room:join", { roomCode: normalizedCode, nickname, playerToken }, (result) => {
       if (result.ok && result.data) saveSession(result.data);
       else if (!silent) setMessage(result.error ?? "참가하지 못했습니다.");
+    });
+  }
+
+  function spectate() {
+    const normalizedCode = extractRoomCode(roomCode);
+    if (!normalizedCode) { setMessage("방 코드 또는 초대 링크를 확인해 주세요."); return; }
+    socket.emit("room:spectate", { roomCode: normalizedCode, nickname }, (result) => {
+      if (result.ok && result.data) saveSession(result.data);
+      else setMessage(result.error ?? "관전할 수 없습니다.");
     });
   }
 
@@ -155,6 +166,7 @@ export function App() {
         <div className="joinRow">
           <input aria-label="방 코드 또는 초대 링크" value={roomCode} placeholder="방 코드 또는 초대 링크 붙여넣기" onChange={(event) => setRoomCode(event.target.value)} />
           <button onClick={() => join()} disabled={!connected}>참가</button>
+          <button onClick={spectate} disabled={!connected}>관전</button>
         </div>
         <div className="divider"><span>또는</span></div>
         <button className="primary wide" onClick={createRoom} disabled={!connected}>새로운 도시 만들기</button>
@@ -178,7 +190,7 @@ export function App() {
 
   return <main className="gameShell">
     <header>
-      <div><p className="eyebrow">{room.game.phase === GamePhase.LOBBY ? "대기실" : `${room.game.round} 라운드`}</p><h1>{room.name}</h1></div>
+      <div><p className="eyebrow">{isSpectator ? "관전 중" : room.game.phase === GamePhase.LOBBY ? "대기실" : `${room.game.round} 라운드`}</p><h1>{room.name}</h1></div>
       <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button><button className="ghost" onClick={leaveLocal}>나가기</button></div>
     </header>
     {showRulesGuide && <RulesGuide onClose={() => setShowRulesGuide(false)} />}
@@ -189,8 +201,8 @@ export function App() {
     {copyNotice && <p className="copyNotice" role="status">{copyNotice}</p>}
     <div className="layout">
       <section className="mainPanel">
-        {room.game.phase === GamePhase.LOBBY && <Lobby room={room} meId={session.playerId} onReady={() => socket.emit("room:ready", !me?.isReady, finish)} onRoleSet={(id) => socket.emit("room:role-set", id, finish)} onRankNine={(enabled, roleId, customMode) => socket.emit("room:rank-nine", { enabled, roleId, customMode }, finish)} onStart={() => socket.emit("game:start", finish)} />}
-        {room.game.phase === GamePhase.ROLE_SELECTION && <RoleSelection room={room} privateState={privateState} onSelect={(id) => socket.emit("role:select", id, finish)} onDiscard={(id) => socket.emit("role:discard", id, finish)} />}
+        {room.game.phase === GamePhase.LOBBY && (isSpectator ? <section className="lobby"><h2>대기실 관전 중</h2><p>게임 시작 뒤 공개된 도시와 진행 상황을 볼 수 있습니다.</p></section> : <Lobby room={room} meId={session.playerId} onReady={() => socket.emit("room:ready", !me?.isReady, finish)} onRoleSet={(id) => socket.emit("room:role-set", id, finish)} onRankNine={(enabled, roleId, customMode) => socket.emit("room:rank-nine", { enabled, roleId, customMode }, finish)} onStart={() => socket.emit("game:start", finish)} />)}
+        {room.game.phase === GamePhase.ROLE_SELECTION && (isSpectator ? <section className="lobby"><h2>역할 선택 진행 중</h2><p>역할은 비공개 정보라 관전자에게 표시되지 않습니다.</p></section> : <RoleSelection room={room} privateState={privateState} onSelect={(id) => socket.emit("role:select", id, finish)} onDiscard={(id) => socket.emit("role:discard", id, finish)} />)}
         {room.game.phase === GamePhase.GAME_END && <GameEnd room={room} meId={session.playerId} canRematch={Boolean(me?.isHost)} onRematch={() => socket.emit("game:rematch", finish)} />}
         {[GamePhase.TURN_START, GamePhase.INCOME, GamePhase.ACTION, GamePhase.BUILD, GamePhase.TURN_END].includes(room.game.phase) && <GameBoard
           room={room}
@@ -228,6 +240,7 @@ export function App() {
           {player.isHost && <em>방장</em>}{room.game.phase === GamePhase.LOBBY && <b>{player.isReady ? "준비" : "대기"}</b>}
           {room.game.phase !== GamePhase.LOBBY && <small>🪙 {player.gold} · 🃏 {player.handCount} · 🏛️ {player.city.length}</small>}
         </div>)}</div>
+        {room.spectators.length > 0 && <p>관전자 {room.spectators.map((spectator) => spectator.nickname).join(", ")}</p>}
         {room.game.phase !== GamePhase.LOBBY && <OpponentCities players={room.players} meId={session.playerId} />}
         {room.game.logs.length > 0 && <section className="gameLogs"><h2>게임 로그</h2>{room.game.logs.slice(-8).reverse().map((log) => <p key={log.id}><span>R{log.round}</span>{log.message}</p>)}</section>}
         <Chat messages={room.chat} onSend={(message) => socket.emit("chat:send", message, finish)} />

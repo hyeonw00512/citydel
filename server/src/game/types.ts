@@ -56,6 +56,7 @@ export interface Room {
   crownHolderId: string;
   hostId: string;
   players: Map<string, Player>;
+  spectators: Map<string, { id: string; token: string; nickname: string; socketId: string | null }>;
   chat: ChatMessage[];
   nextChatId: number;
   game: InternalGameState;

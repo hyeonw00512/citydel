@@ -27,6 +27,13 @@ export function registerSocketHandlers(io: GameServer, rooms: RoomManager, engin
       return result.session;
     }));
 
+    socket.on("room:spectate", (payload, callback) => handle(socket, callback, () => {
+      const result = rooms.spectate(payload.roomCode, payload.nickname, socket.id, payload.playerToken);
+      socket.join(result.room.code);
+      publish(io, rooms, engine, result.room);
+      return result.session;
+    }));
+
     socket.on("room:ready", (ready, callback) => handle(socket, callback, () => {
       const { room, player } = requireSession(rooms, socket.id);
       if (room.game.phase !== "LOBBY") throw new Error("로비에서만 준비 상태를 바꿀 수 있습니다.");

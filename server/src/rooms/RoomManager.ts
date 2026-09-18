@@ -22,6 +22,7 @@ export class RoomManager {
       crownHolderId: player.id,
       hostId: player.id,
       players: new Map([[player.id, player]]),
+      spectators: new Map(),
       chat: [],
       nextChatId: 1,
       game: this.engine.createInitialState()
@@ -49,6 +50,18 @@ export class RoomManager {
     return { room, session: this.session(room, player) };
   }
 
+  spectate(codeInput: string, nickname: string, socketId: string, token?: string): { room: Room; session: SessionData } {
+    const code = codeInput.trim().toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room) throw new Error("존재하지 않는 방입니다.");
+    const existing = token ? [...room.spectators.values()].find((spectator) => spectator.token === token) : undefined;
+    const spectator = existing ?? { id: randomUUID(), token: randomBytes(24).toString("hex"), nickname: nickname.trim().slice(0, 16), socketId };
+    if (spectator.nickname.length < 2) throw new Error("닉네임은 2자 이상 입력해 주세요.");
+    spectator.socketId = socketId;
+    room.spectators.set(spectator.id, spectator);
+    return { room, session: { roomCode: room.code, playerId: spectator.id, playerToken: spectator.token, isSpectator: true } };
+  }
+
   get(code: string): Room | undefined { return this.rooms.get(code.toUpperCase()); }
 
   findBySocket(socketId: string): { room: Room; player: Player } | undefined {
@@ -62,7 +75,13 @@ export class RoomManager {
 
   disconnect(socketId: string): Room | undefined {
     const found = this.findBySocket(socketId);
-    if (!found) return undefined;
+    if (!found) {
+      for (const room of this.rooms.values()) {
+        const spectator = [...room.spectators.values()].find((item) => item.socketId === socketId);
+        if (spectator) { spectator.socketId = null; return room; }
+      }
+      return undefined;
+    }
     found.player.socketId = null;
     found.player.disconnectedAt = Date.now();
     return found.room;
@@ -140,6 +159,7 @@ export class RoomManager {
         handCount: player.hand.length,
         city: player.city
       })),
+      spectators: [...room.spectators.values()].map((spectator) => ({ id: spectator.id, nickname: spectator.nickname, isConnected: spectator.socketId !== null })),
       chat: room.chat,
       game: this.engine.toPublicState(room)
     };
