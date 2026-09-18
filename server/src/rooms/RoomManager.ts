@@ -64,6 +64,8 @@ export class RoomManager {
 
   get(code: string): Room | undefined { return this.rooms.get(code.toUpperCase()); }
 
+  listPublicRooms(): Room[] { return [...this.rooms.values()]; }
+
   findBySocket(socketId: string): { room: Room; player: Player } | undefined {
     for (const room of this.rooms.values()) {
       for (const player of room.players.values()) {
