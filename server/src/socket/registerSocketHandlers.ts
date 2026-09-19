@@ -227,9 +227,10 @@ export function registerSocketHandlers(io: GameServer, rooms: RoomManager, engin
     }));
 
     socket.on("chat:send", (message, callback) => handle(socket, callback, () => {
-      const { room, player } = requireSession(rooms, socket.id);
-      const chat = rooms.sendChat(room, player.id, message);
-      io.to(room.code).emit("chat:message", chat);
+      const session = rooms.findChatSession(socket.id);
+      if (!session) throw new Error("먼저 방에 참가해 주세요.");
+      const chat = rooms.sendChat(session.room, session.participant, message);
+      io.to(session.room.code).emit("chat:message", chat);
       return undefined;
     }));
 

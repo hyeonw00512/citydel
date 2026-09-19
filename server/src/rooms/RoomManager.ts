@@ -75,6 +75,16 @@ export class RoomManager {
     return undefined;
   }
 
+  findChatSession(socketId: string): { room: Room; participant: { id: string; nickname: string } } | undefined {
+    const playerSession = this.findBySocket(socketId);
+    if (playerSession) return { room: playerSession.room, participant: playerSession.player };
+    for (const room of this.rooms.values()) {
+      const spectator = [...room.spectators.values()].find((item) => item.socketId === socketId);
+      if (spectator) return { room, participant: { id: spectator.id, nickname: `${spectator.nickname} (관전)` } };
+    }
+    return undefined;
+  }
+
   disconnect(socketId: string): Room | undefined {
     const found = this.findBySocket(socketId);
     if (!found) {
@@ -127,13 +137,13 @@ export class RoomManager {
     room.game = this.engine.createInitialState();
   }
 
-  sendChat(room: Room, playerId: string, messageInput: string): ChatMessage {
-    const player = room.players.get(playerId);
-    if (!player) throw new Error("방 참가자만 채팅을 보낼 수 있습니다.");
+  sendChat(room: Room, participantInput: string | { id: string; nickname: string }, messageInput: string): ChatMessage {
+    const participant = typeof participantInput === "string" ? room.players.get(participantInput) : participantInput;
+    if (!participant) throw new Error("방 참가자만 채팅을 보낼 수 있습니다.");
     const message = messageInput.trim().replace(/\s+/g, " ");
     if (!message) throw new Error("채팅 내용을 입력해 주세요.");
     if (message.length > 300) throw new Error("채팅은 300자 이하로 입력해 주세요.");
-    const chat: ChatMessage = { id: room.nextChatId++, playerId, nickname: player.nickname, message, sentAt: Date.now() };
+    const chat: ChatMessage = { id: room.nextChatId++, playerId: participant.id, nickname: participant.nickname, message, sentAt: Date.now() };
     room.chat.push(chat);
     if (room.chat.length > 100) room.chat.splice(0, room.chat.length - 100);
     return chat;
