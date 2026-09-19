@@ -35,6 +35,7 @@ app.get("/api/platform/rooms", (_request, response) => response.json({
     maxPlayers: 8,
     spectatorCount: room.spectators.size,
     status: room.game.phase === "LOBBY" ? "WAITING" : room.game.phase === "GAME_END" ? "FINISHED" : "PLAYING",
+    visibility: "PUBLIC",
     requiresPassword: false,
     canJoin: room.game.phase === "LOBBY" && room.players.size < 8,
     canSpectate: true,
