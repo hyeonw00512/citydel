@@ -81,12 +81,15 @@ export function App() {
   const [showRulesGuide, setShowRulesGuide] = useState(false);
   const [connected, setConnected] = useState(socket.connected);
   const [wonderCard, setWonderCard] = useState<DistrictCard | null>(null);
+  const [portraitHint, setPortraitHint] = useState(() => sessionStorage.getItem("crown-city-landscape-hint") !== "dismissed");
 
   useEffect(() => {
     if (!wonderCard) return;
     const timer = window.setTimeout(() => setWonderCard(null), 1_800);
     return () => window.clearTimeout(timer);
   }, [wonderCard]);
+
+  const dismissPortraitHint = () => { sessionStorage.setItem("crown-city-landscape-hint", "dismissed"); setPortraitHint(false); };
 
   useEffect(() => {
     const onConnect = () => {
@@ -189,6 +192,7 @@ export function App() {
   }
 
   return <main className="gameShell">
+    {portraitHint && <section className="orientationHint" role="status"><span aria-hidden="true">▭</span><div><b>가로 화면을 권장합니다</b><small>카드와 도시 정보를 함께 보려면 기기를 옆으로 돌려주세요.</small></div><button onClick={dismissPortraitHint}>세로로 계속</button></section>}
     <header>
       <div><p className="eyebrow">{isSpectator ? "관전 중" : room.game.phase === GamePhase.LOBBY ? "대기실" : `${room.game.round} 라운드`}</p><h1>{room.name}</h1></div>
       <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button><button className="ghost" onClick={leaveLocal}>나가기</button></div>
