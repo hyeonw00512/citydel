@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GamePhase, type ActionResult, type DistrictCard, type DistrictColor, type PrivatePlayerState, type PublicRoomState, type RoleDefinition, type SessionData } from "@citadel/shared";
 import { socket } from "./socket/socket";
 
 const STORAGE_KEY = "crown-city-session";
 const queryCode = new URLSearchParams(location.search).get("room")?.toUpperCase() ?? "";
+const platformJoinToken = new URLSearchParams(location.search).get("joinToken");
 const ROLE_ART: Record<string, string> = {
   assassin: "/card-art/assassin.png",
   thief: "/card-art/thief.png",
@@ -82,6 +83,7 @@ export function App() {
   const [connected, setConnected] = useState(socket.connected);
   const [wonderCard, setWonderCard] = useState<DistrictCard | null>(null);
   const [portraitHint, setPortraitHint] = useState(() => sessionStorage.getItem("crown-city-landscape-hint") !== "dismissed");
+  const platformJoinAttempted = useRef(false);
 
   useEffect(() => {
     if (!wonderCard) return;
@@ -96,6 +98,13 @@ export function App() {
       setConnected(true);
       const saved = readSession();
       if (saved && nickname) join(saved.roomCode, saved.playerToken, true, Boolean(saved.isSpectator));
+      else if (platformJoinToken && !platformJoinAttempted.current) {
+        platformJoinAttempted.current = true;
+        socket.emit("platform:join", { joinToken: platformJoinToken }, (result) => {
+          if (result.ok && result.data) savePlatformSession(result.data);
+          else setMessage(result.error ?? "플랫폼 자동 입장에 실패했습니다.");
+        });
+      }
     };
     const onDisconnect = () => setConnected(false);
     const onRoom = (state: PublicRoomState) => setRoom(state);
@@ -121,6 +130,16 @@ export function App() {
   function saveSession(data: SessionData) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem("crown-city-nickname", nickname.trim());
+    setSession(data);
+    if (data.isSpectator) setPrivateState(null);
+    history.replaceState(null, "", `?room=${data.roomCode}`);
+  }
+
+  function savePlatformSession(data: SessionData) {
+    const automaticNickname = data.nickname?.trim() || "플랫폼 사용자";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem("crown-city-nickname", automaticNickname);
+    setNickname(automaticNickname);
     setSession(data);
     if (data.isSpectator) setPrivateState(null);
     history.replaceState(null, "", `?room=${data.roomCode}`);

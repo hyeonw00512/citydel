@@ -1,4 +1,5 @@
 import type { Server, Socket } from "socket.io";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ClientToServerEvents, ServerToClientEvents } from "@citadel/shared";
 import { GameEngine } from "../game/GameEngine.js";
 import type { Room } from "../game/types.js";
@@ -32,6 +33,17 @@ export function registerSocketHandlers(io: GameServer, rooms: RoomManager, engin
       socket.join(result.room.code);
       publish(io, rooms, engine, result.room);
       return result.session;
+    }));
+
+    socket.on("platform:join", (payload, callback) => handle(socket, callback, () => {
+      const join = verifyPlatformJoinToken(payload.joinToken);
+      const result = join.mode === "SPECTATOR"
+        ? rooms.spectate(join.roomCode, join.nickname, socket.id)
+        : rooms.join(join.roomCode, join.nickname, socket.id);
+      if (!result.session.isSpectator) clearDisconnectedTurnTimer(result.session.playerId);
+      socket.join(result.room.code);
+      publish(io, rooms, engine, result.room);
+      return { ...result.session, nickname: join.nickname };
     }));
 
     socket.on("room:ready", (ready, callback) => handle(socket, callback, () => {
@@ -239,6 +251,23 @@ export function registerSocketHandlers(io: GameServer, rooms: RoomManager, engin
       if (room) publish(io, rooms, engine, room);
     });
   });
+}
+
+function verifyPlatformJoinToken(token: string): { gameId: string; roomCode: string; nickname: string; mode?: string; exp: number } {
+  const secret = process.env.PLATFORM_JOIN_SECRET;
+  if (!secret) throw new Error("플랫폼 자동 입장이 아직 설정되지 않았습니다.");
+  const [body, signature] = String(token || "").split(".");
+  if (!body || !signature) throw new Error("자동 입장 정보가 올바르지 않습니다.");
+  const expected = createHmac("sha256", secret).update(body).digest("base64url");
+  const received = Buffer.from(signature), valid = Buffer.from(expected);
+  if (received.length !== valid.length || !timingSafeEqual(received, valid)) throw new Error("자동 입장 정보가 만료되었거나 올바르지 않습니다.");
+  let payload: { gameId?: string; roomCode?: string; nickname?: string; mode?: string; exp?: number };
+  try { payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")); }
+  catch { throw new Error("자동 입장 정보를 읽을 수 없습니다."); }
+  if (payload.gameId !== "crown-city" || !payload.roomCode || !payload.nickname || Number(payload.exp) * 1000 <= Date.now()) {
+    throw new Error("자동 입장 정보가 만료되었거나 다른 게임용입니다.");
+  }
+  return payload as { gameId: string; roomCode: string; nickname: string; mode?: string; exp: number };
 }
 
 function scheduleGraveyardRecoveryExpiry(io: GameServer, rooms: RoomManager, engine: GameEngine, room: Room): void {
