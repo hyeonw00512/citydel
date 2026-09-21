@@ -5,6 +5,7 @@ import { socket } from "./socket/socket";
 const STORAGE_KEY = "crown-city-session";
 const queryCode = new URLSearchParams(location.search).get("room")?.toUpperCase() ?? "";
 const platformJoinToken = new URLSearchParams(location.search).get("joinToken");
+const platformHomeUrl = () => new URLSearchParams(location.search).get("platformUrl") || import.meta.env.VITE_PLATFORM_URL || document.referrer || "/";
 const ROLE_ART: Record<string, string> = {
   assassin: "/card-art/assassin.png",
   thief: "/card-art/thief.png",
@@ -218,7 +219,7 @@ export function App() {
     {portraitHint && <section className="orientationHint" role="status"><span aria-hidden="true">▭</span><div><b>가로 화면을 권장합니다</b><small>카드와 도시 정보를 함께 보려면 기기를 옆으로 돌려주세요.</small></div><button onClick={dismissPortraitHint}>세로로 계속</button></section>}
     <header>
       <div><p className="eyebrow">{isSpectator ? "관전 중" : room.game.phase === GamePhase.LOBBY ? "대기실" : `${room.game.round} 라운드`}</p><h1>{room.name}</h1></div>
-      <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button><button className="ghost" onClick={leaveLocal}>나가기</button></div>
+      <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button><button className="ghost" onClick={() => window.location.assign(platformHomeUrl())}>플랫폼</button><button className="ghost" onClick={leaveLocal}>나가기</button></div>
     </header>
     {showRulesGuide && <RulesGuide onClose={() => setShowRulesGuide(false)} />}
     <section className="roomBar">
