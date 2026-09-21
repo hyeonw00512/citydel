@@ -7,6 +7,15 @@ const queryCode = new URLSearchParams(location.search).get("room")?.toUpperCase(
 const platformJoinToken = new URLSearchParams(location.search).get("joinToken");
 const platformNickname = new URLSearchParams(location.search).get("platformNickname")?.trim() || "";
 const platformHomeUrl = () => new URLSearchParams(location.search).get("platformUrl") || import.meta.env.VITE_PLATFORM_URL || document.referrer || "/";
+const platformActivityToken = new URLSearchParams(location.search).get("platformActivityToken");
+let lastPlatformActivity = "";
+const reportPlatformActivity = (status: "LOBBY" | "PLAYING" | "SPECTATING") => {
+  if (!platformActivityToken || lastPlatformActivity === status) return;
+  lastPlatformActivity = status;
+  let endpoint: string;
+  try { endpoint = new URL("/api/activity", platformHomeUrl()).toString(); } catch { return; }
+  fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: platformActivityToken, status }), keepalive: true }).catch(() => { lastPlatformActivity = ""; });
+};
 const ROLE_ART: Record<string, string> = {
   assassin: "/card-art/assassin.png",
   thief: "/card-art/thief.png",
@@ -129,6 +138,9 @@ export function App() {
 
   const isSpectator = Boolean(session?.isSpectator);
   const me = useMemo(() => room?.players.find((player) => player.id === session?.playerId), [room, session]);
+  useEffect(() => {
+    reportPlatformActivity(!room || room.game.phase === GamePhase.LOBBY ? "LOBBY" : isSpectator ? "SPECTATING" : "PLAYING");
+  }, [room?.game.phase, isSpectator]);
 
   function saveSession(data: SessionData) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
