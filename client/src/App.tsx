@@ -74,7 +74,7 @@ const CARD_GLOSSARY: Record<string, readonly { term: string; description: string
 };
 
 export function App() {
-  const [nickname, setNickname] = useState(platformNickname || localStorage.getItem("crown-city-nickname") ?? "");
+  const [nickname, setNickname] = useState(platformNickname || (localStorage.getItem("crown-city-nickname") ?? ""));
   const [roomCode, setRoomCode] = useState(queryCode);
   const [session, setSession] = useState<SessionData | null>(() => readSession());
   const [room, setRoom] = useState<PublicRoomState | null>(null);
