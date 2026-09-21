@@ -5,6 +5,7 @@ import { socket } from "./socket/socket";
 const STORAGE_KEY = "crown-city-session";
 const queryCode = new URLSearchParams(location.search).get("room")?.toUpperCase() ?? "";
 const platformJoinToken = new URLSearchParams(location.search).get("joinToken");
+const platformNickname = new URLSearchParams(location.search).get("platformNickname")?.trim() || "";
 const platformHomeUrl = () => new URLSearchParams(location.search).get("platformUrl") || import.meta.env.VITE_PLATFORM_URL || document.referrer || "/";
 const ROLE_ART: Record<string, string> = {
   assassin: "/card-art/assassin.png",
@@ -73,7 +74,7 @@ const CARD_GLOSSARY: Record<string, readonly { term: string; description: string
 };
 
 export function App() {
-  const [nickname, setNickname] = useState(localStorage.getItem("crown-city-nickname") ?? "");
+  const [nickname, setNickname] = useState(platformNickname || localStorage.getItem("crown-city-nickname") ?? "");
   const [roomCode, setRoomCode] = useState(queryCode);
   const [session, setSession] = useState<SessionData | null>(() => readSession());
   const [room, setRoom] = useState<PublicRoomState | null>(null);
@@ -189,7 +190,7 @@ export function App() {
         <p className="eyebrow">실시간 전략 보드게임</p>
         <h1>왕관의 도시</h1>
         <p className="subtitle">비밀 역할을 선택하고, 가장 위대한 도시를 세우세요.</p>
-        <label>닉네임<input value={nickname} maxLength={16} placeholder="2~16자" onChange={(event) => setNickname(event.target.value)} /></label>
+        {!platformNickname && <label>닉네임<input value={nickname} maxLength={16} placeholder="2~16자" onChange={(event) => setNickname(event.target.value)} /></label>}
         <div className="joinRow">
           <input aria-label="방 코드 또는 초대 링크" value={roomCode} placeholder="방 코드 또는 초대 링크 붙여넣기" onChange={(event) => setRoomCode(event.target.value)} />
           <button onClick={() => join()} disabled={!connected}>참가</button>
