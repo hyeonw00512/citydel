@@ -40,6 +40,7 @@ export class RoomManager {
       if (existing) {
         existing.socketId = socketId;
         existing.disconnectedAt = null;
+        existing.aiControlled = false;
         return { room, session: this.session(room, existing) };
       }
     }
@@ -96,6 +97,7 @@ export class RoomManager {
     }
     found.player.socketId = null;
     found.player.disconnectedAt = Date.now();
+    found.player.aiControlled = found.room.game.phase !== GamePhase.LOBBY;
     return found.room;
   }
 
@@ -165,6 +167,7 @@ export class RoomManager {
         isHost: player.id === room.hostId,
         isReady: player.isReady,
         isConnected: player.socketId !== null,
+        isAiControlled: player.aiControlled,
         hasCrown: player.id === room.crownHolderId,
         seatNumber: index + 1,
         gold: player.gold,
@@ -182,7 +185,7 @@ export class RoomManager {
     if (nickname.length < 2) throw new Error("닉네임은 2자 이상 입력해 주세요.");
     return {
       id: randomUUID(), token: randomBytes(24).toString("hex"), nickname, socketId,
-      isReady: false, joinedAt: Date.now(), disconnectedAt: null,
+      isReady: false, joinedAt: Date.now(), disconnectedAt: null, aiControlled: false,
       gold: 0, hand: [], city: []
     };
   }

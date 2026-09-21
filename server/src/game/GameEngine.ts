@@ -336,14 +336,14 @@ export class GameEngine {
         const role = this.roles.getDiscardChoices(room, playerId)[0];
         if (!role) return false;
         this.discardRole(room, playerId, role.id);
-        this.logs.add(room, "연결이 끊긴 플레이어의 역할 카드가 비공개로 자동 제외되었습니다.");
+        this.logs.add(room, "AI 대행이 연결이 끊긴 플레이어의 역할 카드를 비공개로 자동 제외했습니다.");
         return true;
       }
 
       const role = this.roles.getChoices(room, playerId)[0];
       if (!role) return false;
       this.selectRole(room, playerId, role.id);
-      this.logs.add(room, "연결이 끊긴 플레이어의 역할을 자동으로 선택했습니다.");
+      this.logs.add(room, "AI 대행이 연결이 끊긴 플레이어의 역할을 자동으로 선택했습니다.");
       return true;
     }
     if (![GamePhase.INCOME, GamePhase.ACTION, GamePhase.BUILD, GamePhase.TURN_END].includes(room.game.phase)) return false;
@@ -351,17 +351,17 @@ export class GameEngine {
     if (this.currentActingPlayerId(room) !== playerId) return false;
     if (room.game.phase === GamePhase.INCOME) {
       this.takeIncome(room, playerId, "GOLD");
-      this.logs.add(room, `${player.nickname}님의 연결 끊김으로 금화 수입을 자동 선택했습니다.`);
+      this.logs.add(room, `AI 대행이 ${player.nickname}님의 금화 수입을 자동 선택했습니다.`);
       return true;
     }
     if (room.game.phase === GamePhase.ACTION) {
       this.skipAction(room, playerId);
-      this.logs.add(room, `${player.nickname}님의 연결 끊김으로 역할 능력을 건너뛰었습니다.`);
+      this.logs.add(room, `AI 대행이 ${player.nickname}님의 역할 능력을 건너뛰었습니다.`);
       return true;
     }
     if ([GamePhase.BUILD, GamePhase.TURN_END].includes(room.game.phase)) {
       this.endTurn(room, playerId);
-      this.logs.add(room, `${player.nickname}님의 연결 끊김으로 턴을 자동 종료했습니다.`);
+      this.logs.add(room, `AI 대행이 ${player.nickname}님의 턴을 자동 종료했습니다.`);
       return true;
     }
     return false;

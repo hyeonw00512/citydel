@@ -41,6 +41,7 @@ export interface PublicPlayer {
   isHost: boolean;
   isReady: boolean;
   isConnected: boolean;
+  isAiControlled: boolean;
   hasCrown: boolean;
   seatNumber: number;
   gold: number;

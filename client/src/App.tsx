@@ -260,7 +260,7 @@ export function App() {
         <h2>플레이어</h2>
         <div className="playerList">{room.players.map((player) => <div className={`player ${player.id === session.playerId ? "me" : ""}`} key={player.id}>
           <span className={`dot ${player.isConnected ? "online" : ""}`} />
-          <span>{player.seatNumber}번 좌석 · {player.nickname}{player.hasCrown && " 👑"}{player.id === session.playerId && " (나)"}</span>
+          <span>{player.seatNumber}번 좌석 · {player.nickname}{player.hasCrown && " 👑"}{player.isAiControlled && " 🤖 AI 대행"}{player.id === session.playerId && " (나)"}</span>
           {player.isHost && <em>방장</em>}{room.game.phase === GamePhase.LOBBY && <b>{player.isReady ? "준비" : "대기"}</b>}
           {room.game.phase !== GamePhase.LOBBY && <small>🪙 {player.gold} · 🃏 {player.handCount} · 🏛️ {player.city.length}</small>}
         </div>)}</div>

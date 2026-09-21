@@ -9,6 +9,7 @@ export interface Player {
   isReady: boolean;
   joinedAt: number;
   disconnectedAt: number | null;
+  aiControlled: boolean;
   gold: number;
   hand: DistrictCard[];
   city: DistrictCard[];
