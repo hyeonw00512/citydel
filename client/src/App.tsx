@@ -172,10 +172,13 @@ export function App() {
   }
 
   function leaveLocal() {
-    localStorage.removeItem(STORAGE_KEY);
-    setSession(null); setRoom(null); setPrivateState(null);
-    history.replaceState(null, "", location.pathname);
-    socket.disconnect().connect();
+    socket.emit("room:leave", (result) => {
+      if (!result.ok) { setMessage(result.error ?? "방에서 나갈 수 없습니다."); return; }
+      localStorage.removeItem(STORAGE_KEY);
+      setSession(null); setRoom(null); setPrivateState(null);
+      history.replaceState(null, "", location.pathname);
+      socket.disconnect().connect();
+    });
   }
 
   if (!room || !session) {

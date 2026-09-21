@@ -101,6 +101,26 @@ export class RoomManager {
     return found.room;
   }
 
+  leave(socketId: string): { room: Room; deleted: boolean } | undefined {
+    const found = this.findBySocket(socketId);
+    if (found) {
+      if (found.room.players.size === 1) {
+        this.rooms.delete(found.room.code);
+        return { room: found.room, deleted: true };
+      }
+      const room = this.disconnect(socketId);
+      return room ? { room, deleted: false } : undefined;
+    }
+    for (const room of this.rooms.values()) {
+      const spectator = [...room.spectators.values()].find((item) => item.socketId === socketId);
+      if (spectator) {
+        room.spectators.delete(spectator.id);
+        return { room, deleted: false };
+      }
+    }
+    return undefined;
+  }
+
   setRoleSet(room: Room, requesterId: string, roleSetId: string): void {
     if (room.game.phase !== "LOBBY") throw new Error("로비에서만 직업 세트를 바꿀 수 있습니다.");
     if (room.hostId !== requesterId) throw new Error("방장만 직업 세트를 바꿀 수 있습니다.");

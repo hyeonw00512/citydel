@@ -168,6 +168,7 @@ export interface ClientToServerEvents {
   "room:create": (nickname: string, callback: (result: ActionResult<SessionData>) => void) => void;
   "room:join": (payload: JoinPayload, callback: (result: ActionResult<SessionData>) => void) => void;
   "room:spectate": (payload: JoinPayload, callback: (result: ActionResult<SessionData>) => void) => void;
+  "room:leave": (callback: (result: ActionResult) => void) => void;
   "platform:join": (payload: { joinToken: string }, callback: (result: ActionResult<SessionData>) => void) => void;
   "room:ready": (ready: boolean, callback: (result: ActionResult) => void) => void;
   "room:role-set": (roleSetId: string, callback: (result: ActionResult) => void) => void;

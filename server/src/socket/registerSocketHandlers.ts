@@ -35,6 +35,15 @@ export function registerSocketHandlers(io: GameServer, rooms: RoomManager, engin
       return result.session;
     }));
 
+    socket.on("room:leave", (callback) => handle(socket, callback, () => {
+      const result = rooms.leave(socket.id);
+      if (result) {
+        socket.leave(result.room.code);
+        if (!result.deleted) publish(io, rooms, engine, result.room);
+      }
+      return undefined;
+    }));
+
     socket.on("platform:join", (payload, callback) => handle(socket, callback, () => {
       const join = verifyPlatformJoinToken(payload.joinToken);
       const result = join.mode === "SPECTATOR"
