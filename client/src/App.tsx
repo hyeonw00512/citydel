@@ -97,14 +97,15 @@ export function App() {
     const onConnect = () => {
       setConnected(true);
       const saved = readSession();
-      if (saved && nickname) join(saved.roomCode, saved.playerToken, true, Boolean(saved.isSpectator));
-      else if (platformJoinToken && !platformJoinAttempted.current) {
+      if (platformJoinToken && !platformJoinAttempted.current) {
         platformJoinAttempted.current = true;
+        localStorage.removeItem(STORAGE_KEY);
         socket.emit("platform:join", { joinToken: platformJoinToken }, (result) => {
           if (result.ok && result.data) savePlatformSession(result.data);
           else setMessage(result.error ?? "플랫폼 자동 입장에 실패했습니다.");
         });
       }
+      else if (saved && nickname) join(saved.roomCode, saved.playerToken, true, Boolean(saved.isSpectator));
     };
     const onDisconnect = () => setConnected(false);
     const onRoom = (state: PublicRoomState) => setRoom(state);
