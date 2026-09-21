@@ -9,8 +9,8 @@ const platformNickname = new URLSearchParams(location.search).get("platformNickn
 const platformHomeUrl = () => new URLSearchParams(location.search).get("platformUrl") || import.meta.env.VITE_PLATFORM_URL || document.referrer || "/";
 const platformActivityToken = new URLSearchParams(location.search).get("platformActivityToken");
 let lastPlatformActivity = "";
-const reportPlatformActivity = (status: "LOBBY" | "PLAYING" | "SPECTATING") => {
-  if (!platformActivityToken || lastPlatformActivity === status) return;
+const reportPlatformActivity = (status: "LOBBY" | "PLAYING" | "SPECTATING", force = false) => {
+  if (!platformActivityToken || (!force && lastPlatformActivity === status)) return;
   lastPlatformActivity = status;
   let endpoint: string;
   try { endpoint = new URL("/api/activity", platformHomeUrl()).toString(); } catch { return; }
@@ -139,7 +139,10 @@ export function App() {
   const isSpectator = Boolean(session?.isSpectator);
   const me = useMemo(() => room?.players.find((player) => player.id === session?.playerId), [room, session]);
   useEffect(() => {
-    reportPlatformActivity(!room || room.game.phase === GamePhase.LOBBY ? "LOBBY" : isSpectator ? "SPECTATING" : "PLAYING");
+    const status = !room || room.game.phase === GamePhase.LOBBY ? "LOBBY" : isSpectator ? "SPECTATING" : "PLAYING";
+    reportPlatformActivity(status);
+    const timer = window.setInterval(() => reportPlatformActivity(status, true), 45_000);
+    return () => window.clearInterval(timer);
   }, [room?.game.phase, isSpectator]);
 
   function saveSession(data: SessionData) {
