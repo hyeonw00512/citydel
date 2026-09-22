@@ -211,6 +211,7 @@ export function App() {
           <button onClick={() => join()} disabled={!connected}>참가</button>
           <button onClick={spectate} disabled={!connected}>관전</button>
         </div>
+        {platformNickname && <button className="ghost wide" onClick={() => window.location.assign(platformHomeUrl())}>플랫폼으로 돌아가기</button>}
         <div className="divider"><span>또는</span></div>
         <button className="primary wide" onClick={createRoom} disabled={!connected}>새로운 도시 만들기</button>
         <Status connected={connected} message={message} />
@@ -235,7 +236,7 @@ export function App() {
     {portraitHint && <section className="orientationHint" role="status"><span aria-hidden="true">▭</span><div><b>가로 화면을 권장합니다</b><small>카드와 도시 정보를 함께 보려면 기기를 옆으로 돌려주세요.</small></div><button onClick={dismissPortraitHint}>세로로 계속</button></section>}
     <header>
       <div><p className="eyebrow">{isSpectator ? "관전 중" : room.game.phase === GamePhase.LOBBY ? "대기실" : `${room.game.round} 라운드`}</p><h1>{room.name}</h1></div>
-      <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button><button className="ghost" onClick={() => window.location.assign(platformHomeUrl())}>플랫폼</button><button className="ghost" onClick={leaveLocal}>나가기</button></div>
+      <div className="headerActions"><button className="ghost" onClick={() => setShowRulesGuide(true)}>게임 가이드</button>{room.game.phase === GamePhase.LOBBY && <button className="ghost" onClick={() => window.location.assign(platformHomeUrl())}>플랫폼</button>}<button className="ghost" onClick={leaveLocal}>나가기</button></div>
     </header>
     {showRulesGuide && <RulesGuide onClose={() => setShowRulesGuide(false)} />}
     <section className="roomBar">
