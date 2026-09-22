@@ -3,7 +3,7 @@ services:
     runtime: node
     name: citydel-game
     plan: free
-    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm run build
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm run build
     startCommand: node server/dist/index.js
     healthCheckPath: /health
     envVars:
