@@ -4,8 +4,10 @@ services:
     name: citydel-game
     plan: free
     buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm run build
-    startCommand: corepack pnpm --filter @citadel/server start
+    startCommand: node server/dist/index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 20
+      - key: NODE_ENV
+        value: production
