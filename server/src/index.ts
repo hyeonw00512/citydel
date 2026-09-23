@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "@citadel/shared";
@@ -45,8 +45,20 @@ app.get("/api/platform/rooms", (_request, response) => response.json({
 }));
 const clientDist = resolve(dirname(fileURLToPath(import.meta.url)), "../../client/dist");
 if (existsSync(clientDist)) {
-  app.use(express.static(clientDist));
-  app.get("*", (_request, response) => response.sendFile(resolve(clientDist, "index.html")));
+  // Vite 자산은 콘텐츠 해시 파일명이라 오래 캐시해도 새 배포와 충돌하지 않는다.
+  // HTML만 매번 확인해 모바일 재방문은 빠르고 배포 반영도 즉시 되게 한다.
+  app.use(express.static(clientDist, {
+    setHeaders(response, filePath) {
+      if (filePath.includes(`${sep}assets${sep}`)) {
+        response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (basename(filePath) === "index.html") {
+        response.setHeader("Cache-Control", "no-cache");
+      }
+    }
+  }));
+  app.get("*", (_request, response) => response.sendFile(resolve(clientDist, "index.html"), {
+    headers: { "Cache-Control": "no-cache" }
+  }));
 }
 
 httpServer.listen(port, "0.0.0.0", () => {
