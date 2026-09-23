@@ -9,13 +9,14 @@ const platformNickname = new URLSearchParams(location.search).get("platformNickn
 const platformHomeUrl = () => new URLSearchParams(location.search).get("platformUrl") || import.meta.env.VITE_PLATFORM_URL || document.referrer || "/";
 const platformActivityToken = new URLSearchParams(location.search).get("platformActivityToken");
 let lastPlatformActivity = "";
-const reportPlatformActivity = (status: "LOBBY" | "PLAYING" | "SPECTATING", force = false) => {
+const reportPlatformActivity = (status: "LOBBY" | "PLAYING" | "SPECTATING" | "OFFLINE", force = false) => {
   if (!platformActivityToken || (!force && lastPlatformActivity === status)) return;
   lastPlatformActivity = status;
   let endpoint: string;
   try { endpoint = new URL("/api/activity", platformHomeUrl()).toString(); } catch { return; }
   fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: platformActivityToken, status }), keepalive: true }).catch(() => { lastPlatformActivity = ""; });
 };
+window.addEventListener("pagehide", () => reportPlatformActivity("OFFLINE", true));
 const ROLE_ART: Record<string, string> = {
   assassin: "/card-art/assassin.png",
   thief: "/card-art/thief.png",
