@@ -420,12 +420,27 @@ function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onB
   const [seerFirstTarget, setSeerFirstTarget] = useState<string | null>(null);
   const current = room.players.find((player) => player.id === room.game.currentPlayerId);
   const myCity = room.players.find((player) => player.id === privateState?.playerId)?.city ?? [];
+  const knownCityIds = useRef<Set<string> | null>(null);
+  const [newCityIds, setNewCityIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const currentIds = new Set(myCity.map((card) => card.instanceId));
+    if (knownCityIds.current) {
+      const added = [...currentIds].filter((id) => !knownCityIds.current?.has(id));
+      if (added.length) {
+        setNewCityIds(new Set(added));
+        const timer = window.setTimeout(() => setNewCityIds(new Set()), 950);
+        knownCityIds.current = currentIds;
+        return () => window.clearTimeout(timer);
+      }
+    }
+    knownCityIds.current = currentIds;
+  }, [myCity]);
   const phaseLabel = room.game.phase === GamePhase.INCOME ? "수입 선택" : room.game.phase === GamePhase.ACTION ? "역할 능력" : room.game.phase === GamePhase.BUILD ? "건설" : "턴 마무리";
   return <div className="board">
-    <div className="turnBanner"><div><p className="eyebrow">{room.game.currentRoleRank}번 역할 · {phaseLabel}</p><h2>{isMyTurn ? "나의 턴입니다" : `${current?.nickname ?? "플레이어"}님의 턴`}</h2></div><strong>덱 {room.game.deckCount}장</strong></div>
+    <div className="turnBanner" key={`${room.game.currentPlayerId}-${room.game.phase}-${room.game.currentRoleRank}`}><div><p className="eyebrow">{room.game.currentRoleRank}번 역할 · {phaseLabel}</p><h2>{isMyTurn ? "나의 턴입니다" : `${current?.nickname ?? "플레이어"}님의 턴`}</h2></div><strong>덱 {room.game.deckCount}장</strong></div>
     {privateState?.selectedRole && <div className="resourceBar"><span className="roleIdentity">나의 현재 역할 <b>{privateState.selectedRole.rank}번 · {privateState.selectedRole.name}</b></span><span>보유 금화 <b>🪙 {privateState.gold}</b></span></div>}
     <CityTable players={room.players} meId={privateState?.playerId ?? ""} currentPlayerId={room.game.currentPlayerId} />
-    <section className="personalTable">{privateState?.selectedRole && <article className={`roleCard role-${privateState.selectedRole.id} activeRoleCard`} style={{ "--role-color": privateState.selectedRole.color } as React.CSSProperties}><RoleFace role={privateState.selectedRole} /></article>}<section className="hand city personalCity"><div className="sectionTitle"><h3>내 도시</h3><span>🏛️ {myCity.length}채 · 공개 필드</span></div>{myCity.length === 0 ? <p className="emptyCity">아직 건설한 건물이 없습니다.</p> : <div className="districtGrid">{myCity.map((card) => <District key={card.instanceId} card={card} onClick={() => undefined} />)}</div>}</section></section>
+    <section className="personalTable">{privateState?.selectedRole && <article className={`roleCard role-${privateState.selectedRole.id} activeRoleCard`} style={{ "--role-color": privateState.selectedRole.color } as React.CSSProperties}><RoleFace role={privateState.selectedRole} /></article>}<section className="hand city personalCity"><div className="sectionTitle"><h3>내 도시</h3><span>🏛️ {myCity.length}채 · 공개 필드</span></div>{myCity.length === 0 ? <p className="emptyCity">아직 건설한 건물이 없습니다.</p> : <div className="districtGrid">{myCity.map((card) => <District key={card.instanceId} card={card} motionClass={newCityIds.has(card.instanceId) ? "city-build-in" : undefined} onClick={() => undefined} />)}</div>}</section></section>
     {privateState?.canTakeIncome && <section className="actionBox"><h3>수입을 선택하세요</h3><div className="incomeActions"><button className="primary" onClick={() => onIncome("GOLD")}>금화 2개 받기</button><button className="secondary" onClick={() => onIncome("CARDS")}>카드 2장 보기</button></div></section>}
     {privateState && privateState.incomeChoices.length > 0 && <section className="actionBox"><h3>손에 추가할 카드 {privateState.incomeSelectionsRemaining}장을 더 고르세요</h3><div className="districtGrid">{privateState.incomeChoices.map((card) => <District key={card.instanceId} card={card} action="선택" onClick={() => onChooseIncome(card.instanceId)} />)}</div></section>}
     {isMyTurn && room.game.phase === GamePhase.ACTION && privateState?.canUseAbility && privateState.selectedRole?.abilityType === "COLOR_INCOME" && myCity.some((card) => card.definitionId === "school_of_magic") && <section className="actionBox"><h3>마법 학교의 색상 수입</h3><p>이번 수입에 적용할 건물 색상을 고르세요.</p><div className="incomeActions">{(["NOBLE", "RELIGIOUS", "TRADE", "MILITARY"] as DistrictColor[]).map((color) => <button className="primary" key={color} onClick={() => onColorIncome(color)}>{color} 색 수입</button>)}</div></section>}
@@ -443,10 +458,10 @@ function GameBoard({ room, privateState, isMyTurn, onIncome, onChooseIncome, onB
   </div>;
 }
 
-function District({ card, action, onClick }: { card: DistrictCard; action?: string; onClick: () => void }) {
+function District({ card, action, onClick, motionClass }: { card: DistrictCard; action?: string; onClick: () => void; motionClass?: string }) {
   const [showGlossary, setShowGlossary] = useState(false);
   const glossary = CARD_GLOSSARY[card.definitionId];
-  return <article className={`district color-${card.color.toLowerCase()}`}>
+  return <article className={`district color-${card.color.toLowerCase()} ${motionClass ?? ""}`}>
     <div className="cardHeader"><span>{DISTRICT_COLOR_LABEL[card.color]} 건물</span><b>🪙 {card.cost}</b></div>
     <CardArtwork src={DISTRICT_ART[card.definitionId]} alt={`${card.name} 건물 일러스트`} />
     <h3>{card.name}</h3>
