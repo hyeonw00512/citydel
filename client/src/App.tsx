@@ -137,6 +137,13 @@ export function App() {
   }, []);
 
   const isSpectator = Boolean(session?.isSpectator);
+  useEffect(() => {
+    const resumeConnection = () => {
+      if (document.visibilityState === "visible" && !socket.connected) socket.connect();
+    };
+    document.addEventListener("visibilitychange", resumeConnection);
+    return () => document.removeEventListener("visibilitychange", resumeConnection);
+  }, []);
   const me = useMemo(() => room?.players.find((player) => player.id === session?.playerId), [room, session]);
   useEffect(() => {
     const status = !room || room.game.phase === GamePhase.LOBBY ? "LOBBY" : isSpectator ? "SPECTATING" : "PLAYING";
